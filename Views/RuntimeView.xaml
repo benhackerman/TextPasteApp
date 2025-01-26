@@ -1,0 +1,11 @@
+﻿<Window x:Class="TextPasteApp.Views.RuntimeView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" Topmost="True">
+    <Grid>
+        <UniformGrid Columns="4" Rows="4">
+            <!-- Los elementos se generarán dinámicamente -->
+        </UniformGrid>
+    </Grid>
+</Window>

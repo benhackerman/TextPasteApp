@@ -1,25 +1,36 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.11.35303.130
+VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TextPasteApp", "TextPasteApp.csproj", "{30FB7776-BED7-44D0-ABB8-DA20AFC34319}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{5F37FCDB-6656-4E65-8F54-F210538C7863}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TextPasteApp.Core", "src\TextPasteApp.Core\TextPasteApp.Core.csproj", "{8FE34697-FC3C-422C-A62C-9F1B7A630FB9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8F54BF48-9335-4A7A-ACBC-CFC20CEC6527}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TextPasteApp.Core.Tests", "tests\TextPasteApp.Core.Tests\TextPasteApp.Core.Tests.csproj", "{F758D15B-76F4-4986-9D0B-B9072CB92A16}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{30FB7776-BED7-44D0-ABB8-DA20AFC34319}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{30FB7776-BED7-44D0-ABB8-DA20AFC34319}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{30FB7776-BED7-44D0-ABB8-DA20AFC34319}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{30FB7776-BED7-44D0-ABB8-DA20AFC34319}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {D7F27C6A-F6FF-4690-96D8-13AE662E07BB}
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8FE34697-FC3C-422C-A62C-9F1B7A630FB9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8FE34697-FC3C-422C-A62C-9F1B7A630FB9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8FE34697-FC3C-422C-A62C-9F1B7A630FB9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8FE34697-FC3C-422C-A62C-9F1B7A630FB9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F758D15B-76F4-4986-9D0B-B9072CB92A16}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F758D15B-76F4-4986-9D0B-B9072CB92A16}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F758D15B-76F4-4986-9D0B-B9072CB92A16}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F758D15B-76F4-4986-9D0B-B9072CB92A16}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{8FE34697-FC3C-422C-A62C-9F1B7A630FB9} = {5F37FCDB-6656-4E65-8F54-F210538C7863}
+		{F758D15B-76F4-4986-9D0B-B9072CB92A16} = {8F54BF48-9335-4A7A-ACBC-CFC20CEC6527}
 	EndGlobalSection
 EndGlobal

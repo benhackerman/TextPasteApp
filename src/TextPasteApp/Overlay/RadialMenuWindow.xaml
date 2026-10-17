@@ -1,0 +1,17 @@
+<Window x:Class="TextPasteApp.Overlay.RadialMenuWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TextPaste"
+        Width="520" Height="520"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False" Topmost="True"
+        FontFamily="Segoe UI" SnapsToDevicePixels="True" UseLayoutRounding="True">
+    <!-- Todo se dibuja desde RadialMenuWindow.xaml.cs (Render). Aquí sólo están las capas fijas. -->
+    <Canvas x:Name="Root" Width="520" Height="520">
+        <Canvas x:Name="Drawing" Width="520" Height="520" />
+        <TextBox x:Name="SearchBox" Width="190" Height="28" Visibility="Collapsed"
+                 FontSize="13" Padding="8,4" VerticalContentAlignment="Center"
+                 Background="#FF14161B" Foreground="White" CaretBrush="White"
+                 BorderBrush="#FF3A3F4B" BorderThickness="1" />
+    </Canvas>
+</Window>

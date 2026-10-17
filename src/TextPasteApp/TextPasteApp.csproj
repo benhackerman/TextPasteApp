@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <!-- Desactivado a propósito: WPF y WinForms (ícono de bandeja) tienen clases con el mismo nombre. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>TextPasteApp</AssemblyName>
+    <RootNamespace>TextPasteApp</RootNamespace>
+    <Version>0.1.0</Version>
+    <!-- Permite compilar (no ejecutar) desde Linux/macOS, útil para CI. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TextPasteApp.Core\TextPasteApp.Core.csproj" />
+  </ItemGroup>
+
+</Project>

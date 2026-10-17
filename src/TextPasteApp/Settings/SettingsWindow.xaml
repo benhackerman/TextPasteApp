@@ -1,0 +1,177 @@
+<Window x:Class="TextPasteApp.Settings.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TextPaste — Configuración" Width="780" Height="600" MinWidth="620" MinHeight="460"
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="13">
+    <DockPanel>
+        <!-- Encabezado -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBrush}" Padding="18,12">
+            <StackPanel>
+                <TextBlock Text="TextPaste" Foreground="White" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock x:Name="HeaderHint" Foreground="#FF9AA0AA" Margin="0,2,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!-- Barra inferior -->
+        <Border DockPanel.Dock="Bottom" Padding="14,10" BorderBrush="#FFE5E7EB" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Guardar" IsDefault="True" Click="Save_Click" FontWeight="SemiBold" />
+                    <Button Content="Cancelar" IsCancel="True" Click="Cancel_Click" Margin="0" />
+                </StackPanel>
+                <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"
+                           TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </Border>
+
+        <TabControl Margin="12" Padding="14">
+            <!-- ═══════════ General ═══════════ -->
+            <TabItem Header="General">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+                        <TextBlock Text="Atajo" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource Help}"
+                                   Text="Haz clic en el cuadro y presiona la combinación. Mantenla presionada para abrir la ruleta y suéltala para pegar." />
+                        <TextBox x:Name="HotkeyBox" Width="260" HorizontalAlignment="Left" IsReadOnly="True"
+                                 FontWeight="SemiBold" Cursor="Hand"
+                                 PreviewKeyDown="HotkeyBox_PreviewKeyDown"
+                                 GotKeyboardFocus="HotkeyBox_GotFocus" LostKeyboardFocus="HotkeyBox_LostFocus" />
+
+                        <TextBlock Text="Comportamiento" Style="{StaticResource SectionTitle}" Margin="0,18,0,6" />
+                        <CheckBox x:Name="TapToStickBox"
+                                  Content="Un toque rápido del atajo deja la ruleta abierta con buscador" />
+                        <CheckBox x:Name="RestoreClipboardBox"
+                                  Content="Después de pegar, devolver al portapapeles lo que había antes" />
+                        <CheckBox x:Name="PersistHistoryBox" Content="Guardar el historial al cerrar" />
+                        <CheckBox x:Name="StartWithWindowsBox" Content="Iniciar con Windows" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <TextBlock Text="Textos en el historial:" VerticalAlignment="Center" Width="170" />
+                            <TextBox x:Name="HistoryLimitBox" Width="70" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="Sectores por página:" VerticalAlignment="Center" Width="170" />
+                            <ComboBox x:Name="SlicesBox" Width="70" />
+                        </StackPanel>
+
+                        <TextBlock Text="Historial actual" Style="{StaticResource SectionTitle}" Margin="0,18,0,6" />
+                        <ListBox x:Name="HistoryList" Height="140" />
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="★ Pasar a favoritos" Click="HistoryToFavorite_Click" />
+                            <Button Content="Borrar historial" Click="ClearHistory_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ═══════════ Favoritos ═══════════ -->
+            <TabItem Header="Favoritos">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}"
+                               Text="Textos fijos que siempre aparecen en la ruleta. El nombre corto es lo que se ve en el sector; si lo dejas vacío se muestra el texto." />
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="▲ Subir" Click="FavoriteUp_Click" />
+                        <Button Content="▼ Bajar" Click="FavoriteDown_Click" />
+                        <Button Content="Eliminar" Click="FavoriteDelete_Click" />
+                    </StackPanel>
+                    <DataGrid x:Name="FavoritesGrid" AutoGenerateColumns="False" CanUserAddRows="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="26">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Nombre corto" Binding="{Binding Label}" Width="180" />
+                            <DataGridTextColumn Header="Texto a pegar" Binding="{Binding Text}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ═══════════ Taglist ═══════════ -->
+            <TabItem Header="Taglist">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.ColumnSpan="3" Style="{StaticResource Help}"
+                                   Text="La ruleta busca por la columna de tag (la del P&amp;ID) y pega la columna de valor (n° de actuador / módulo), pasando por la plantilla activa. El archivo se relee solo cuando cambia." />
+
+                        <TextBlock Grid.Row="1" Text="Archivo:" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="FilePathBox" Margin="0,2" />
+                        <Button Grid.Row="1" Grid.Column="2" Content="Examinar…" Click="Browse_Click" Margin="6,2,0,2" />
+
+                        <TextBlock Grid.Row="2" Text="Hoja:" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                            <ComboBox x:Name="SheetBox" Width="200" SelectionChanged="Sheet_Changed" />
+                            <TextBlock Text="Fila de encabezados:" VerticalAlignment="Center" Margin="16,0,6,0" />
+                            <TextBox x:Name="HeaderRowBox" Width="50" />
+                        </StackPanel>
+                        <Button Grid.Row="2" Grid.Column="2" Content="Leer columnas" Click="ReadColumns_Click" Margin="6,2,0,2" />
+
+                        <TextBlock Grid.Row="3" Text="Columna del tag:" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="3" Grid.Column="1" x:Name="TagColumnBox" IsEditable="True" Width="260"
+                                  HorizontalAlignment="Left" Margin="0,2" />
+
+                        <TextBlock Grid.Row="4" Text="Columna del valor:" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="4" Grid.Column="1" x:Name="ValueColumnBox" IsEditable="True" Width="260"
+                                  HorizontalAlignment="Left" Margin="0,2" />
+
+                        <TextBlock Grid.Row="5" Text="Columna descripción:" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="5" Grid.Column="1" x:Name="DescColumnBox" IsEditable="True" Width="260"
+                                  HorizontalAlignment="Left" Margin="0,2" />
+                        <Button Grid.Row="5" Grid.Column="2" Content="Vista previa" Click="Preview_Click" Margin="6,2,0,2"
+                                FontWeight="SemiBold" />
+                    </Grid>
+                    <DataGrid x:Name="PreviewGrid" Margin="0,10,0,0" IsReadOnly="True" AutoGenerateColumns="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" />
+                </DockPanel>
+            </TabItem>
+
+            <!-- ═══════════ Plantillas ═══════════ -->
+            <TabItem Header="Plantillas">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}">
+                        Envuelven el texto antes de pegarlo. Se cambian con clic derecho (o T / F2) en la ruleta.
+                        <LineBreak />
+                        Marcadores: <Bold>{valor}</Bold> valor a pegar · <Bold>{tag}</Bold> · <Bold>{desc}</Bold> ·
+                        <Bold>{NombreColumna}</Bold> cualquier columna del Excel · <Bold>{valor:0000}</Bold> rellena con ceros.
+                    </TextBlock>
+                    <Border DockPanel.Dock="Bottom" Background="#FFF3F4F6" CornerRadius="6" Padding="10" Margin="0,8,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Probar con  valor:" VerticalAlignment="Center" />
+                                <TextBox x:Name="SampleValueBox" Width="90" Margin="6,0" Text="23" TextChanged="Sample_Changed" />
+                                <TextBlock Text="tag:" VerticalAlignment="Center" />
+                                <TextBox x:Name="SampleTagBox" Width="110" Margin="6,0" Text="XV-1023" TextChanged="Sample_Changed" />
+                            </StackPanel>
+                            <TextBlock x:Name="TemplatePreview" Margin="0,8,0,0" FontFamily="Consolas" FontSize="14"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="▲ Subir" Click="TemplateUp_Click" />
+                        <Button Content="▼ Bajar" Click="TemplateDown_Click" />
+                        <Button Content="Eliminar" Click="TemplateDelete_Click" />
+                    </StackPanel>
+                    <DataGrid x:Name="TemplatesGrid" AutoGenerateColumns="False" CanUserAddRows="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="26"
+                              SelectionChanged="Templates_SelectionChanged" CellEditEnding="Templates_CellEditEnding">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Nombre" Binding="{Binding Name}" Width="200" />
+                            <DataGridTextColumn Header="Patrón" Binding="{Binding Pattern}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using TextPasteApp.Core.Logic;
+using TextPasteApp.Core.Models;
 using TextPasteApp.Native;
 
 namespace TextPasteApp.Taglist;
@@ -16,7 +17,8 @@ namespace TextPasteApp.Taglist;
 /// Buscador compacto del taglist: aparece bajo el puntero con una línea de búsqueda y una tabla de resultados
 /// que se filtra mientras escribes. Maneja sus propias teclas sobre un <see cref="TaglistSession"/> y al final
 /// le pide al controlador que pegue (o que cancele).
-///   ↑↓ fila · rueda columna · → autocompletar · Tab hoja · Ctrl+1…9 hoja · F2 plantilla · Ctrl+rueda opacidad · Enter pega · Esc
+///   ↑↓ fila · rueda columna · → autocompletar · Tab hoja · Ctrl+1…9 hoja · F2 plantilla · F4 proyecto
+///   Ctrl+D hecho · Ctrl+rueda opacidad · Enter pega · Shift+Enter secuencia · Esc
 /// </summary>
 public partial class TaglistWindow : Window
 {
@@ -36,8 +38,17 @@ public partial class TaglistWindow : Window
     private bool _hiding;
     private bool _settingText;
 
-    /// <summary>El usuario eligió un texto (ya con la plantilla aplicada).</summary>
-    public event Action<string>? PasteRequested;
+    /// <summary>
+    /// El usuario eligió qué pegar (ya con la plantilla aplicada). Un solo valor con Enter;
+    /// varios (secuencia con Tab entre ellos) con Shift+Enter.
+    /// </summary>
+    public event Action<IReadOnlyList<string>, bool>? PasteRequested;
+
+    /// <summary>Ctrl+D: marcar / desmarcar la fila como hecha.</summary>
+    public event Action<TagRow>? ToggleDoneRequested;
+
+    /// <summary>F4: pasar al siguiente proyecto (otro taglist).</summary>
+    public event Action? NextProjectRequested;
     public event Action? Cancelled;
     public event Action? SwitchToRingRequested;
     public event Action<double>? OpacityChanged;
@@ -57,6 +68,7 @@ public partial class TaglistWindow : Window
         PreviewKeyDown += OnPreviewKeyDown;
         PreviewMouseWheel += OnWheel;
         SheetText.MouseLeftButtonUp += (_, _) => Do(s => s.NextSheet());
+        ProjectText.MouseLeftButtonUp += (_, _) => NextProjectRequested?.Invoke();
         // La ventana cambia de tamaño con los resultados: se mantiene pegada al puntero y dentro de la pantalla.
         SizeChanged += (_, _) =>
         {
@@ -70,11 +82,12 @@ public partial class TaglistWindow : Window
 
     // ───────────────────────── Mostrar / ocultar ─────────────────────────
 
-    internal void Open(TaglistSession session, Win32.POINT cursor, double opacity, string? emptyMessage)
+    internal void Open(TaglistSession session, Win32.POINT cursor, double opacity, string projectLabel, string? emptyMessage)
     {
         _session = session;
         _emptyMessage = emptyMessage;
         _anchor = cursor;
+        ProjectText.Text = projectLabel;
         SetSearchText("");
 
         new WindowInteropHelper(this).EnsureHandle();
@@ -91,6 +104,16 @@ public partial class TaglistWindow : Window
         Win32.SetForegroundWindow(_hwnd);
         SearchBox.Focus();
         Keyboard.Focus(SearchBox);
+    }
+
+    /// <summary>Cambia el taglist mostrado (otro proyecto) sin cerrar la ventana; conserva lo escrito.</summary>
+    internal void Replace(TaglistSession session, string projectLabel, string? emptyMessage)
+    {
+        _session = session;
+        _emptyMessage = emptyMessage;
+        ProjectText.Text = projectLabel;
+        session.SetQuery(SearchBox.Text);
+        Render();
     }
 
     public void Dismiss()
@@ -120,7 +143,13 @@ public partial class TaglistWindow : Window
         switch (key)
         {
             case Key.Escape: Cancelled?.Invoke(); return;
+            case Key.Enter when shift: PasteSequence(); return;
             case Key.Enter: Paste(); return;
+            case Key.D when ctrl:
+                if (_session.Selected is { } row) ToggleDoneRequested?.Invoke(row);
+                Render();
+                return;
+            case Key.F4: NextProjectRequested?.Invoke(); return;
             case Key.Down: Do(s => s.MoveRow(1)); return;
             case Key.Up: Do(s => s.MoveRow(-1)); return;
             case Key.PageDown: Do(s => s.MoveRow(VisibleRows)); return;
@@ -169,7 +198,14 @@ public partial class TaglistWindow : Window
 
     private void Paste()
     {
-        if (_session?.Preview is { Length: > 0 } text) PasteRequested?.Invoke(text);
+        if (_session?.Preview is { Length: > 0 } text) PasteRequested?.Invoke(new[] { text }, false);
+    }
+
+    /// <summary>Shift+Enter: pega la secuencia de la hoja (o un valor normal si la hoja no tiene secuencia).</summary>
+    private void PasteSequence()
+    {
+        if (_session?.SequenceValues is { Count: > 0 } values) PasteRequested?.Invoke(values, true);
+        else Paste();
     }
 
     private void Do(Action<TaglistSession> change)
@@ -198,8 +234,20 @@ public partial class TaglistWindow : Window
         GhostText.Inlines.Add(new Run(s.Ghost) { Foreground = GhostBrush });
         Placeholder.Visibility = s.Query.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        var sheet = s.SheetIndex == TaglistSession.AllSheets ? "TODAS" : s.Book.Sheets[s.SheetIndex].Short.ToUpperInvariant();
-        SheetText.Text = s.Book.Sheets.Count == 0 ? "" : $"{sheet} · {s.Results.Count}";
+        var sheet = s.SheetIndex == TaglistSession.AllSheets || s.IsAutoAll ? "TODAS" : s.Book.Sheets[s.SheetIndex].Short.ToUpperInvariant();
+        SheetText.Text = s.Book.Sheets.Count == 0 ? "" : $"{sheet}{(s.IsAutoAll ? " (auto)" : "")} · {s.Results.Count}";
+        SheetText.ToolTip = s.IsAutoAll
+            ? $"No había coincidencias en {s.SheetDisplayName}: se muestran todas las hojas. Tab: cambiar de hoja"
+            : "Tab: cambiar de hoja · Ctrl+1…9: hoja directa";
+        var (done, total) = s.Progress();
+        ProgressText.Text = total > 0 ? $"✓ {done}/{total}" : "";
+
+        if (s.Selected is { } selected && selected.Sheet.SequenceColumns.Count > 0)
+        {
+            SequenceText.Text = "Shift+Enter: " + string.Join(" ⇥ ", selected.Sheet.SequenceColumns.Select(c => selected.Sheet.Columns[c]));
+            SequenceText.Visibility = Visibility.Visible;
+        }
+        else SequenceText.Visibility = Visibility.Collapsed;
         TemplateText.Text = "plantilla: " + s.Template.Name;
         TemplateText.Visibility = s.TemplateIndex > 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -224,7 +272,7 @@ public partial class TaglistWindow : Window
         EmptyText.Visibility = Visibility.Collapsed;
 
         var (start, rows) = s.Window(VisibleRows);
-        if (s.SheetIndex != TaglistSession.AllSheets)
+        if (s.SheetIndex != TaglistSession.AllSheets && !s.IsAutoAll)
         {
             var sheet = s.Book.Sheets[s.SheetIndex];
             // Sólo las columnas que tienen algo en los resultados (más la de pegar).
@@ -232,11 +280,15 @@ public partial class TaglistWindow : Window
                 .Where(c => c == sheet.PasteColumn || s.Results.Any(r => r[c].Length > 0))
                 .ToList();
 
-            Table.Children.Add(MakeRow(columns.Select(c => new Cell(sheet.Columns[c], c, "c" + c, false)).ToList(), header: true, -1, s));
+            var header = new List<Cell> { new("", -1, "mark", false) };
+            header.AddRange(columns.Select(c => new Cell(sheet.Columns[c], c, "c" + c, false)));
+            Table.Children.Add(MakeRow(header, header: true, -1, s));
             for (var k = 0; k < rows.Count; k++)
             {
                 var row = rows[k];
-                Table.Children.Add(MakeRow(columns.Select(c => new Cell(row[c], c, "c" + c, c == sheet.DescriptionColumn)).ToList(), header: false, start + k, s));
+                var cells = new List<Cell> { Mark(s, row) };
+                cells.AddRange(columns.Select(c => new Cell(row[c], c, "c" + c, c == sheet.DescriptionColumn)));
+                Table.Children.Add(MakeRow(cells, header: false, start + k, s));
             }
         }
         else
@@ -244,7 +296,7 @@ public partial class TaglistWindow : Window
             for (var k = 0; k < rows.Count; k++)
             {
                 var row = rows[k];
-                var cells = new List<Cell> { new(row.Sheet.Short, -1, "sheet", false) };
+                var cells = new List<Cell> { Mark(s, row), new(row.Sheet.Short, -1, "sheet", false) };
                 var position = 0;
                 foreach (var c in row.UsefulColumns)
                     cells.Add(new Cell(row[c], c, "p" + position++, c == row.Sheet.DescriptionColumn));
@@ -254,6 +306,10 @@ public partial class TaglistWindow : Window
     }
 
     private readonly record struct Cell(string Text, int Column, string Group, bool IsText);
+
+    /// <summary>Primera celda de cada fila: ✓ si ya está hecha, ↺ si la usaste hace poco.</summary>
+    private static Cell Mark(TaglistSession s, TagRow row) =>
+        new(s.IsDone(row) ? "✓" : s.IsRecent(row) ? "↺" : "", -1, "mark", false);
 
     private FrameworkElement MakeRow(IReadOnlyList<Cell> cells, bool header, int rowIndex, TaglistSession s)
     {
@@ -268,11 +324,11 @@ public partial class TaglistWindow : Window
             var selectedCell = selectedRow && cell.Column >= 0 && cell.Column == s.FieldIndex;
             var text = new TextBlock
             {
-                Text = header ? cell.Text : cell.Text.Length > 0 ? cell.Text : "·",
+                Text = header || cell.Group == "mark" ? cell.Text : cell.Text.Length > 0 ? cell.Text : "·",
                 FontFamily = header || cell.IsText || cell.Column < 0 ? new FontFamily("Segoe UI") : new FontFamily("Consolas"),
                 FontSize = header || cell.Column < 0 ? 10 : cell.IsText ? 12 : 13,
                 FontWeight = header || cell.Column < 0 || selectedCell ? FontWeights.SemiBold : FontWeights.Normal,
-                Foreground = selectedCell ? DarkText : header || cell.Column < 0 || cell.Text.Length == 0 ? Muted : TextBrush,
+                Foreground = selectedCell ? DarkText : cell.Text == "✓" ? Accent : header || cell.Column < 0 || cell.Text.Length == 0 ? Muted : TextBrush,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxWidth = cell.IsText ? 260 : 150,
                 VerticalAlignment = VerticalAlignment.Center,

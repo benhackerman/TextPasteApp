@@ -14,6 +14,7 @@ public enum ChordSignal
     Down,        // flecha abajo / AvPág
     NextTemplate,// T
     PickSlice,   // 1–9: elegir y pegar el sector N (Value = 0..8)
+    TogglePin,   // P: fijar / soltar el elemento apuntado
 }
 
 /// <summary>Resultado de procesar una tecla: si hay que tragársela (que la app de destino no la vea) y qué señal emitir.</summary>
@@ -35,7 +36,7 @@ public sealed class ChordTracker
     public const int VkShift = 0x10, VkControl = 0x11, VkMenu = 0x12, VkLWin = 0x5B, VkRWin = 0x5C;
     public const int VkLShift = 0xA0, VkRShift = 0xA1, VkLControl = 0xA2, VkRControl = 0xA3, VkLMenu = 0xA4, VkRMenu = 0xA5;
     public const int VkTab = 0x09, VkReturn = 0x0D, VkEscape = 0x1B, VkPrior = 0x21, VkNext = 0x22;
-    public const int VkUp = 0x26, VkDown = 0x28, VkLeft = 0x25, VkRight = 0x27, VkT = 0x54;
+    public const int VkUp = 0x26, VkDown = 0x28, VkLeft = 0x25, VkRight = 0x27, VkT = 0x54, VkP = 0x50;
 
     private readonly HashSet<int> _pressedModifiers = new();
     private readonly HashSet<int> _requiredModifiers = new();
@@ -108,6 +109,7 @@ public sealed class ChordTracker
             VkUp or VkPrior => new ChordResult(true, ChordSignal.Up),
             VkDown or VkNext => new ChordResult(true, ChordSignal.Down),
             VkT => new ChordResult(true, ChordSignal.NextTemplate),
+            VkP => new ChordResult(true, ChordSignal.TogglePin),
             >= 0x31 and <= 0x39 => new ChordResult(true, ChordSignal.PickSlice, vk - 0x31),   // 1–9
             >= 0x61 and <= 0x69 => new ChordResult(true, ChordSignal.PickSlice, vk - 0x61),   // teclado numérico
             _ => new ChordResult(true, ChordSignal.None), // incluye la repetición del gatillo

@@ -26,6 +26,10 @@
                          Background="Transparent" BorderThickness="0" Foreground="White" CaretBrush="White"
                          FontFamily="Consolas" FontSize="14" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,2,0">
+                    <TextBlock x:Name="ProjectText" Foreground="#FF9AA0AA" FontSize="11" Margin="0,0,8,0" Cursor="Hand"
+                               MaxWidth="160" TextTrimming="CharacterEllipsis" ToolTip="F4: cambiar de proyecto" />
+                    <TextBlock x:Name="ProgressText" Foreground="#FF9AA0AA" FontSize="11" Margin="0,0,8,0"
+                               ToolTip="Filas hechas / total · Ctrl+D marca o desmarca" />
                     <TextBlock x:Name="TemplateText" Foreground="#FF9AA0AA" FontSize="11" Margin="0,0,8,0" Visibility="Collapsed" />
                     <TextBlock x:Name="SheetText" Foreground="#FF3DDC97" FontSize="11" FontWeight="Bold" Cursor="Hand"
                                ToolTip="Tab: cambiar de hoja · Ctrl+1…9: hoja directa" />
@@ -34,6 +38,8 @@
             <Border Height="1" Background="#FF2D3240" Margin="0,4,0,4" />
             <!-- Tabla: encabezados + filas (columnas alineadas con SharedSizeGroup) -->
             <StackPanel x:Name="Table" Grid.IsSharedSizeScope="True" />
+            <TextBlock x:Name="SequenceText" Foreground="#FF9AA0AA" FontSize="11" Margin="6,4,4,0" Visibility="Collapsed"
+                       TextTrimming="CharacterEllipsis" MaxWidth="700" />
             <TextBlock x:Name="EmptyText" Foreground="#FF9AA0AA" FontSize="12" TextWrapping="Wrap" MaxWidth="420"
                        Margin="4,4,4,2" Visibility="Collapsed" />
         </StackPanel>

@@ -37,3 +37,25 @@ public class JsonStoreTests
         Directory.Delete(store.Folder, true);
     }
 }
+
+public class UsagePersistenceTests
+{
+    [Fact]
+    public void UsageSurvivesSaveAndLoad()
+    {
+        var store = new TextPasteApp.Core.Storage.JsonStore(Path.Combine(Path.GetTempPath(), $"tpa-{Guid.NewGuid():N}"));
+        var tracker = new TextPasteApp.Core.Logic.UsageTracker();
+        var sheet = new TaglistSheet("Act", "ACT", new[] { "No", "Code" }, 0);
+        var row = sheet.Add("1", "RCP.B1");
+        tracker.RecordTaglist("Vino", row, "1", 1, 20);
+
+        store.Save("usage.json", tracker.Data);
+        var loaded = new TextPasteApp.Core.Logic.UsageTracker(store.Load<UsageData>("usage.json"));
+
+        Assert.True(loaded.IsDone("Vino", row.Key));
+        Assert.Equal(1, loaded.AllTime().TaglistPastes);
+        Assert.Equal(20, loaded.AllTime().SecondsSaved);
+        Assert.Equal(row.Key, loaded.RecentRowKeys("Vino").Single());
+        Directory.Delete(store.Folder, true);
+    }
+}

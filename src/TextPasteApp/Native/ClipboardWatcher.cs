@@ -33,7 +33,7 @@ internal sealed class ClipboardWatcher : IDisposable
 
     private void ReadClipboard()
     {
-        var text = ClipboardHelper.TryGetText();
+        var text = ClipboardHelper.TryGetText(skipPrivate: true);
         if (text != null) TextCopied?.Invoke(text);
     }
 

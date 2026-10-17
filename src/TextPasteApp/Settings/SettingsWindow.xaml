@@ -73,11 +73,40 @@
                             <TextBlock Text="Sectores por página:" VerticalAlignment="Center" Width="170" />
                             <ComboBox x:Name="SlicesBox" Width="70" />
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="No guardar textos de más de:" VerticalAlignment="Center" Width="170" />
+                            <TextBox x:Name="MaxLengthBox" Width="70" />
+                            <TextBlock Text="caracteres (las contraseñas de gestores como KeePass nunca se guardan)" Margin="8,0,0,0"
+                                       VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
+                        </StackPanel>
+
+                        <TextBlock Text="Estadísticas" Style="{StaticResource SectionTitle}" Margin="0,18,0,6" />
+                        <TextBlock Style="{StaticResource Help}" Text="Para estimar el tiempo que te ahorra la app: ¿cuánto te demorabas en buscar y escribir a mano un valor?" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Por valor del taglist:" VerticalAlignment="Center" Width="170" />
+                            <TextBox x:Name="SecondsTaglistBox" Width="60" />
+                            <TextBlock Text="segundos" Margin="6,0,24,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Por pegado de la ruleta:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBox x:Name="SecondsRingBox" Width="60" />
+                            <TextBlock Text="segundos" Margin="6,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Button Content="Ver estadísticas…" Click="OpenStats_Click" HorizontalAlignment="Left" Margin="0,8,0,0" />
+
+                        <TextBlock Text="Actualizaciones y respaldo" Style="{StaticResource SectionTitle}" Margin="0,18,0,6" />
+                        <CheckBox x:Name="AutoUpdateBox" Content="Buscar versiones nuevas en GitHub al iniciar" />
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="Buscar ahora" Click="CheckUpdates_Click" />
+                            <Button Content="Exportar respaldo…" Click="ExportBackup_Click" />
+                            <Button Content="Importar respaldo…" Click="ImportBackup_Click" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Help}" Margin="0,4,0,0"
+                                   Text="El respaldo guarda configuración, perfiles, proyectos, favoritos, historial y estadísticas en un solo archivo (útil al cambiar de computador)." />
 
                         <TextBlock Text="Historial actual" Style="{StaticResource SectionTitle}" Margin="0,18,0,6" />
                         <ListBox x:Name="HistoryList" Height="140" />
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="★ Pasar a favoritos" Click="HistoryToFavorite_Click" />
+                            <Button Content="Fijar / soltar" Click="HistoryPin_Click" ToolTip="Lo fijado aparece siempre primero y no se borra. En la ruleta: tecla P." />
                             <Button Content="Borrar historial" Click="ClearHistory_Click" />
                         </StackPanel>
                     </StackPanel>
@@ -104,11 +133,39 @@
                 </DockPanel>
             </TabItem>
 
-            <!-- ═══════════ Taglist ═══════════ -->
-            <TabItem Header="Taglist">
+            <!-- ═══════════ Proyectos ═══════════ -->
+            <TabItem Header="Proyectos">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}">
+                        Cada proyecto es un archivo de taglist con su perfil. Al presionar el atajo del taglist se elige solo:
+                        <LineBreak />
+                        <Bold>1.</Bold> si el título de la ventana donde vas a pegar contiene alguna palabra de «Reconocer en la ventana»;
+                        <Bold>2.</Bold> si no, el proyecto cuyo Excel tengas abierto;
+                        <Bold>3.</Bold> si no, el último que usaste. En el buscador, <Bold>F4</Bold> cambia de proyecto.
+                    </TextBlock>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Agregar proyecto…" Click="ProjectAdd_Click" FontWeight="SemiBold" />
+                        <Button Content="Cambiar archivo…" Click="ProjectFile_Click" />
+                        <Button Content="Usar ahora" Click="ProjectUse_Click" />
+                        <Button Content="Quitar" Click="ProjectRemove_Click" />
+                    </StackPanel>
+                    <DataGrid x:Name="ProjectsGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="26">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Nombre" Binding="{Binding Name}" Width="150" />
+                            <DataGridTextColumn Header="Archivo del taglist" Binding="{Binding FilePath}" Width="*" />
+                            <DataGridComboBoxColumn x:Name="ProjectProfileColumn" Header="Perfil" SelectedItemBinding="{Binding Profile}" Width="130" />
+                            <DataGridTextColumn Header="Reconocer en la ventana" Binding="{Binding WindowMatch}" Width="170" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ═══════════ Perfiles de taglist ═══════════ -->
+            <TabItem Header="Perfiles de taglist">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}"
-                               Text="Un perfil describe cómo es tu taglist: qué hojas usar, en qué fila están los encabezados y qué columna se pega por defecto. Configúralo una vez; en cada proyecto nuevo sólo cambias el archivo. El archivo se relee solo cuando cambia." />
+                               Text="Un perfil describe cómo es tu taglist: qué hojas usar, en qué fila están los encabezados, qué columna se pega y la secuencia de Shift+Enter. Se configura una vez y lo usan todos los proyectos con ese formato. El archivo de ejemplo sólo sirve para «Detectar hojas»." />
                     <Grid DockPanel.Dock="Top">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="80" />
@@ -135,7 +192,7 @@
                         <TextBlock Grid.Row="1" Text="Nombre:" VerticalAlignment="Center" />
                         <TextBox Grid.Row="1" Grid.Column="1" x:Name="ProfileNameBox" Margin="0,2" LostFocus="ProfileName_LostFocus" />
 
-                        <TextBlock Grid.Row="2" Text="Archivo:" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="2" Text="Ejemplo:" VerticalAlignment="Center" ToolTip="Archivo de ejemplo para detectar las hojas" />
                         <TextBox Grid.Row="2" Grid.Column="1" x:Name="FilePathBox" Margin="0,2" />
                         <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Margin="6,2,0,2">
                             <Button Content="Examinar…" Click="Browse_Click" MinWidth="0" />
@@ -150,7 +207,7 @@
                     </Grid>
 
                     <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}" Margin="0,10,0,4"
-                               Text="Columnas: escribe el encabezado tal como está en el Excel o la letra (A, B…). «Columnas visibles» separadas por coma; vacío = todas. El orden de las filas define Ctrl+1…9." />
+                               Text="Columnas: el encabezado tal como está en el Excel o la letra (A, B…). «Columnas visibles» y «Secuencia» separadas por coma (vacío = todas / sin secuencia). Secuencia = lo que pega Shift+Enter con Tab entre cada valor, ej.: No, Text_0, Unit Assignment. El orden de las filas define Ctrl+1…9." />
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
                         <Button Content="▲ Subir" Click="SheetUp_Click" />
                         <Button Content="▼ Bajar" Click="SheetDown_Click" />
@@ -170,6 +227,7 @@
                                 <DataGridTextColumn Header="Fila encab." Binding="{Binding HeaderRow}" Width="70" />
                                 <DataGridTextColumn Header="Columna a pegar" Binding="{Binding PasteColumn}" Width="120" />
                                 <DataGridTextColumn Header="Columnas visibles" Binding="{Binding VisibleColumns}" Width="*" />
+                                <DataGridTextColumn Header="Secuencia (Shift+Enter)" Binding="{Binding Sequence}" Width="*" />
                             </DataGrid.Columns>
                         </DataGrid>
                         <DataGrid Grid.Row="1" x:Name="PreviewGrid" Margin="0,8,0,0" IsReadOnly="True" AutoGenerateColumns="True"

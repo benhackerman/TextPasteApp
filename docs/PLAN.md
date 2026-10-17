@@ -39,6 +39,18 @@ aparece un cuadro de búsqueda, Enter pega y la app de destino recupera el foco 
 | DPI | Manifest PerMonitorV2 + posición en píxeles físicos | Ruleta nítida y centrada en monitores con distinto escalado |
 | Distribución | `.exe` único autocontenido desde GitHub Actions | Se puede probar en el PC del trabajo sin instalar nada |
 
+## v0.3 — para usarla siempre
+
+- **Secuencias** (Shift+Enter): pegar varias columnas con Tab entre ellas; configurable por hoja en el perfil.
+- **Avance por proyecto**: pegar marca la fila ✓; Ctrl+D marca/desmarca; contador ✓ hechas/total en el buscador.
+- **Recientes primero** (↺) cuando no has escrito nada.
+- **Hoja automática**: si no hay coincidencias en la hoja actual, se muestran las de todas («TODAS (auto)»).
+- **Proyectos** (archivo + perfil): se eligen solos por el título de la ventana, por el Excel abierto o el último usado; F4 cambia.
+- **Estadísticas** (usage.json, agregadas por elemento y por día): pegados, tiempo ahorrado estimado, top, gráfico 30 días, avance.
+- **Historial**: fijar elementos (P / Ctrl+P / Configuración), no guarda textos marcados como privados por gestores de
+  contraseñas ni textos muy largos.
+- **Instalador** Inno Setup por usuario + **actualización automática** desde GitHub Releases + **respaldo** completo.
+
 ## Modo taglist (v0.2)
 
 Decidido con el usuario:
@@ -87,9 +99,8 @@ Cosas que no se pueden verificar sin Windows real; anota lo que falle y lo vemos
 ## Próximos pasos (ideas, en orden sugerido)
 
 1. **Ajustes tras la primera prueba real** (velocidad del toque, tamaño de la ruleta, textos).
-2. **Recientes del taglist**: los últimos tags usados primero en la lista.
-2b. **Pegar varias columnas seguidas** con Tab entre ellas (N° → Tab → descripción) para llenar formularios de una pasada.
-2c. Historial: fijar elementos, mostrar de qué programa se copió, y vista previa del texto completo al apuntar.
+2. Historial: mostrar de qué programa se copió y vista previa del texto completo al apuntar.
+3. Secuencias con otras teclas entre valores (Enter, flechas) según el formulario del SCADA.
 3. **Filtro por columna/área** del taglist (p. ej. sólo área 310) para listas gigantes.
 4. **Varias plantillas por fuente** (una por defecto para taglist y otra para historial).
 5. **Secuencias**: pegar varios campos seguidos con Tab entre ellos (tag → Tab → valor → Tab → descripción).

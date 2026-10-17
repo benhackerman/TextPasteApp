@@ -116,3 +116,67 @@ public class TaglistSessionTests
         Assert.Null(s.Preview);
     }
 }
+
+public class TaglistSessionContextTests
+{
+    private static TaglistBook Book()
+    {
+        var act = new TaglistSheet("Act", "ACT", new[] { "No", "Code", "Text_0", "Unit" }, 0, sequenceColumns: new[] { 0, 2, 3 });
+        act.Add("1", "RCP.B1", "Bomba recepción", "1");
+        act.Add("2", "TK.B1", "Bomba retorno", "");
+        act.Add("3", "L1.B1", "Bomba llenadora", "5");
+        var din = new TaglistSheet("DIn", "DIN", new[] { "No", "Code", "Text_0" }, 0);
+        din.Add("3", "TK1.LSH", "Nivel alto");
+        return new TaglistBook(new[] { act, din });
+    }
+
+    private static readonly TextTemplate[] Plain = { new("", "{valor}"), new("MC", "MC_{valor}") };
+
+    [Fact]
+    public void RecentRowsComeFirstWhenNothingTyped()
+    {
+        var book = Book();
+        var recent = new[] { book.Sheets[0].Rows[2].Key };
+        var s = new TaglistSession(book, "Act", Plain, 0, new TaglistContext { RecentKeys = recent });
+
+        Assert.Equal(new[] { "3", "1", "2" }, s.Results.Select(r => r.PasteValue));
+        Assert.True(s.IsRecent(s.Results[0]));
+
+        s.SetQuery("tk");
+        Assert.Equal("2", s.Preview); // con texto escrito manda la búsqueda
+    }
+
+    [Fact]
+    public void SearchJumpsToAllSheetsWhenCurrentHasNothing()
+    {
+        var s = new TaglistSession(Book(), "Act", Plain, 0);
+        s.SetQuery("lsh");
+        Assert.True(s.IsAutoAll);
+        Assert.Equal("TK1.LSH", s.Selected!.Title);
+        Assert.Equal("Act", s.SheetName); // la hoja elegida no cambia
+
+        s.SetQuery("rcp");
+        Assert.False(s.IsAutoAll);
+    }
+
+    [Fact]
+    public void DoneMarksAndProgress()
+    {
+        var book = Book();
+        var done = new HashSet<string> { book.Sheets[0].Rows[0].Key };
+        var s = new TaglistSession(book, "Act", Plain, 0, new TaglistContext { IsDone = done.Contains });
+
+        Assert.True(s.IsDone(s.Results[0]));
+        Assert.Equal((1, 3), s.Progress());
+    }
+
+    [Fact]
+    public void SequenceAppliesTemplateToPasteColumnOnly()
+    {
+        var s = new TaglistSession(Book(), "Act", Plain, 1);
+        Assert.Equal(new[] { "MC_1", "Bomba recepción", "1" }, s.SequenceValues);
+
+        s.SetSheet(1);
+        Assert.Null(s.SequenceValues); // DIn no tiene secuencia
+    }
+}

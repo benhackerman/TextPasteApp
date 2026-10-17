@@ -41,8 +41,26 @@ public sealed class AppSettings
     /// <summary>Perfiles ("plantillas") de taglist. Normalmente uno solo que reutilizas en cada proyecto.</summary>
     public List<TaglistProfile> TaglistProfiles { get; set; } = new() { new TaglistProfile() };
 
-    /// <summary>Nombre del perfil en uso.</summary>
+    /// <summary>Nombre del perfil en uso (el del proyecto activo; se mantiene por compatibilidad).</summary>
     public string ActiveProfile { get; set; } = "Mi taglist";
+
+    /// <summary>Proyectos: archivo de taglist + perfil + cómo reconocerlo.</summary>
+    public List<TaglistProject> Projects { get; set; } = new();
+
+    /// <summary>Último proyecto usado (se usa si ninguna regla reconoce la ventana actual).</summary>
+    public string ActiveProject { get; set; } = "";
+
+    /// <summary>Segundos que estimas ahorrar por cada valor pegado desde el taglist (para las estadísticas).</summary>
+    public int SecondsSavedTaglist { get; set; } = 20;
+
+    /// <summary>Segundos que estimas ahorrar por cada pegado desde la ruleta.</summary>
+    public int SecondsSavedRing { get; set; } = 4;
+
+    /// <summary>Los textos más largos que esto no se guardan en el historial.</summary>
+    public int MaxHistoryTextLength { get; set; } = 2000;
+
+    /// <summary>Buscar versiones nuevas en GitHub al iniciar.</summary>
+    public bool AutoUpdate { get; set; } = true;
 
     /// <summary>Última hoja usada en el taglist ("" = todas).</summary>
     public string LastSheet { get; set; } = "";
@@ -52,6 +70,31 @@ public sealed class AppSettings
     {
         if (TaglistProfiles.Count == 0) TaglistProfiles.Add(new TaglistProfile());
         return TaglistProfiles.FirstOrDefault(p => p.Name == ActiveProfile) ?? TaglistProfiles[0];
+    }
+
+    /// <summary>Perfil por nombre (o el primero).</summary>
+    public TaglistProfile ProfileFor(TaglistProject project)
+    {
+        if (TaglistProfiles.Count == 0) TaglistProfiles.Add(new TaglistProfile());
+        return TaglistProfiles.FirstOrDefault(p => p.Name == project.Profile) ?? TaglistProfiles[0];
+    }
+
+    /// <summary>
+    /// Pasa la configuración antigua (un archivo dentro del perfil) a proyectos. Devuelve true si cambió algo.
+    /// </summary>
+    public bool EnsureProjects()
+    {
+        if (Projects.Count > 0) return false;
+        var profile = CurrentProfile();
+        if (string.IsNullOrWhiteSpace(profile.FilePath)) return false;
+        Projects.Add(new TaglistProject
+        {
+            Name = Logic.ProjectResolver.FileNameOf(profile.FilePath),
+            FilePath = profile.FilePath,
+            Profile = profile.Name,
+        });
+        ActiveProject = Projects[0].Name;
+        return true;
     }
 
     public List<TextTemplate> Templates { get; set; } = new()

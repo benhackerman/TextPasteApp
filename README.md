@@ -18,6 +18,7 @@ Hay **dos atajos**:
 | Página siguiente | **Rueda** |
 | Historial ↔ Favoritos | **Tab** o clic medio |
 | Cambiar de plantilla | **Clic derecho** o **T** |
+| Fijar en el historial | **P** (en modo buscador: Ctrl+P) |
 | Buscar | **Toque rápido** del atajo: queda abierta con un cuadro de búsqueda |
 | Cancelar | **Esc** o soltar con el mouse en el centro |
 
@@ -32,16 +33,41 @@ Hay **dos atajos**:
 
 | Otras teclas | |
 |---|---|
+| **Shift + Enter** | Pega la **secuencia** de la hoja: varios valores con Tab entre ellos (llena el formulario de una pasada) |
+| **Ctrl + D** | Marca / desmarca la fila como hecha ✓ (pegar ya la marca sola) |
 | **Tab / Shift+Tab** | Hoja siguiente / anterior («Todas» busca en el libro completo) |
 | **Ctrl + 1…9** | Hoja directa (Ctrl + 0 = Todas) |
-| **F2 / Ctrl+T / botón** | Cambiar plantilla |
+| **F4** | Cambiar de proyecto (otro taglist) |
+| **F2 / Ctrl+T** | Cambiar plantilla |
 | **Ctrl + Rueda** | Opacidad de la ventana |
 | **Ctrl + Tab** | Pasar a la ruleta (historial/favoritos) |
 | **Esc** o clic fuera | Cancelar |
 
-**Perfiles de taglist:** describen cómo es tu Excel (qué hojas usar, fila de encabezados, columna a pegar,
-columnas visibles). Se configuran una vez con «Detectar hojas»; en cada proyecto nuevo sólo cambias el archivo.
-Se pueden exportar/importar para usarlos en otro computador.
+En la tabla: **✓** = fila ya parametrizada en este proyecto, **↺** = usada hace poco (sin escribir nada, las
+recientes salen primero). Si lo que escribes no está en la hoja actual, se busca solo en todas («TODAS (auto)»).
+
+### ¿Cómo sabe qué taglist usar?
+
+Cada **proyecto** es un archivo de taglist + un perfil. Al presionar el atajo se elige solo:
+1. si el título de la ventana donde vas a pegar (tu SCADA) contiene una palabra de «Reconocer en la ventana»;
+2. si no, el proyecto cuyo Excel tengas abierto;
+3. si no, el último que usaste. **F4** cambia a mano; también desde el ícono de la bandeja → Proyecto.
+
+**Perfiles de taglist:** describen el formato del Excel (hojas, fila de encabezados, columna a pegar,
+columnas visibles, secuencia, columnas ocultas como `Text_1, Text_2`). Se configuran una vez con «Detectar hojas»
+y los comparten todos los proyectos con ese formato. Se pueden exportar/importar.
+
+### Estadísticas
+
+Bandeja → **Estadísticas**: pegados de hoy, de la semana y totales, **tiempo ahorrado** (estimado, ajustable),
+gráfico de los últimos 30 días, lo que más pegas y el **avance de cada proyecto** (filas ✓ por hoja).
+
+### Para usarla siempre
+
+- **Instalador** sin permisos de administrador (`TextPaste-x.y.z-Setup.exe`), con inicio automático con Windows.
+- **Se actualiza sola**: busca versiones nuevas en GitHub al iniciar; bandeja → «Actualizar».
+- **Respaldo**: Configuración → General → Exportar/Importar respaldo (configuración, historial y estadísticas).
+- Historial: **fijar** elementos (tecla P en la ruleta) y no se guardan contraseñas copiadas desde gestores como KeePass.
 
 Las **plantillas** envuelven el valor antes de pegarlo: `PLC1.MC_{valor}.CMD` + valor `23` → `PLC1.MC_23.CMD`.
 
@@ -50,8 +76,11 @@ Todo se guarda en `%AppData%\TextPasteApp\` (`settings.json`, `history.json`, `e
 
 ## Probarlo
 
-**Sin compilar:** en GitHub → pestaña *Actions* → última ejecución verde de *Build* → descarga
-`TextPasteApp-win-x64` (un solo `.exe`, no necesita instalar .NET).
+**Instalar:** en GitHub → *Releases* → última versión → `TextPaste-x.y.z-Setup.exe`.
+(O sin instalar: *Actions* → última ejecución verde de *Build* → `TextPasteApp-win-x64`, trae el `.exe` suelto y el instalador.)
+
+**Publicar una versión nueva** (para que la app se actualice sola): subir `<Version>` en
+`src/TextPasteApp/TextPasteApp.csproj`, y en GitHub → *Actions* → *Build* → *Run workflow* → marcar «Publicar».
 
 **Desde el código** (Windows, .NET 8 SDK o Visual Studio 2022):
 

@@ -174,6 +174,7 @@ public partial class RadialMenuWindow : Window
             Key.PageDown => (OverlayCommand.Scroll, 1),
             Key.F2 => (OverlayCommand.NextTemplate, 0),
             Key.T when ctrl => (OverlayCommand.NextTemplate, 0),
+            Key.P when ctrl => (OverlayCommand.TogglePin, 0),
             _ => null,
         };
 
@@ -232,7 +233,7 @@ public partial class RadialMenuWindow : Window
                 AddText((i + 1).ToString(), C + nx - 10, C + ny - 8, 20, 10, isSel ? DarkText : Muted, FontWeights.SemiBold);
             }
             var (x, y) = RadialGeometry.PointAt(mid, (InnerR + OuterR) / 2 + 4);
-            AddText(items[i].Title, C + x - 56, C + y - 18, 112, 13, isSel ? DarkText : TextBrush,
+            AddText((items[i].Pinned ? "• " : "") + items[i].Title, C + x - 56, C + y - 18, 112, 13, isSel ? DarkText : TextBrush,
                 isSel ? FontWeights.SemiBold : FontWeights.Normal, maxLines: 2, height: 36, center: true);
         }
 
@@ -285,8 +286,8 @@ public partial class RadialMenuWindow : Window
     private void DrawHint(OverlaySession s)
     {
         var text = _sticky
-            ? "Escribe para buscar · ↑↓ mover · Enter pegar · Tab fuente · F2 plantilla · Esc"
-            : "Suelta para pegar · Rueda: página · Tab: fuente · 1–8: directo · Clic der.: plantilla · Esc";
+            ? "Escribe para buscar · ↑↓ mover · Enter pegar · Tab fuente · Ctrl+P fijar · Esc"
+            : "Suelta para pegar · Rueda: página · Tab: fuente · 1–8: directo · P: fijar · Esc";
 
         var block = new TextBlock { Text = text, FontSize = 11, Foreground = Muted };
         var pill = new Border

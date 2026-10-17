@@ -9,6 +9,9 @@ public sealed class Snippet
     /// <summary>Texto que se pega.</summary>
     public string Text { get; set; } = "";
 
+    /// <summary>Fijado: siempre aparece primero en el historial y no se borra al limpiarlo.</summary>
+    public bool Pinned { get; set; }
+
     public Snippet() { }
 
     public Snippet(string text, string label = "")

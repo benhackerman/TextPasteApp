@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -11,36 +12,39 @@ using TextPasteApp.Core.Taglist;
 using TextPasteApp.Native;
 using TextPasteApp.Overlay;
 using TextPasteApp.Settings;
+using TextPasteApp.Stats;
 using TextPasteApp.Taglist;
 using TextPasteApp.Tray;
+using TextPasteApp.Update;
 
 namespace TextPasteApp;
 
 /// <summary>
 /// El "cerebro" de la app. Conecta las piezas:
-///   teclado/mouse (hooks) → ChordTracker → sesión → ventana → Paster
-/// y además guarda el historial del portapapeles y la configuración.
+///   teclado/mouse (hooks) → ChordTracker → sesión → ventana → Paster → estadísticas
 ///
 /// Dos atajos:
-///   • Ruleta (Ctrl+Shift+Espacio): mantener, apuntar con el mouse, soltar = pegar. Historial y favoritos.
-///     Un toque rápido la deja abierta con buscador.
-///   • Taglist (Ctrl+Shift+T): abre el buscador del taglist con el foco en el cuadro de texto.
-///     Escribes, ↑↓ fila, rueda columna, Tab hoja, Enter pega.
+///   • Ruleta (Ctrl+Shift+Espacio): mantener, apuntar, soltar = pegar. Historial y favoritos.
+///   • Taglist (Ctrl+Shift+T): buscador compacto bajo el puntero. El taglist (proyecto) se elige solo:
+///     por el título de la ventana activa, por el Excel abierto o el último usado (ver ProjectResolver).
 /// </summary>
 public sealed class AppController : IDisposable
 {
     private const string SettingsFile = "settings.json";
     private const string HistoryFile = "history.json";
+    private const string UsageFile = "usage.json";
     private static readonly TimeSpan TapThreshold = TimeSpan.FromMilliseconds(350);
 
     private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
     private readonly JsonStore _store = new();
-    private readonly TaglistCache _taglist = new();
+    private readonly Dictionary<string, TaglistCache> _taglists = new();
     private readonly ChordTracker _ringChord = new(0, false, false, false, false);
     private readonly ChordTracker _taglistChord = new(0, false, false, false, false);
+    private readonly DispatcherTimer _usageSaveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
 
     private AppSettings _settings = new();
     private ClipboardHistory _history = new();
+    private UsageTracker _usage = new();
     private KeyboardHook? _keyboard;
     private MouseHook? _mouse;
     private ClipboardWatcher? _clipboard;
@@ -48,8 +52,10 @@ public sealed class AppController : IDisposable
     private TaglistWindow? _taglistWindow;
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
+    private StatsWindow? _statsWindow;
 
     private OverlaySession? _session;
+    private TaglistProject? _taglistProject;
     private IntPtr _targetWindow;
     private DateTime _openedAt;
     private bool _captureMouse;
@@ -60,24 +66,41 @@ public sealed class AppController : IDisposable
 
     public bool IsFirstRun { get; private set; }
 
+    /// <summary>Versión nueva encontrada en GitHub (o null).</summary>
+    public UpdateChecker.UpdateInfo? AvailableUpdate { get; private set; }
+
+    public IReadOnlyList<TaglistProject> Projects => _settings.Projects;
+    public string ActiveProjectName => _settings.ActiveProject;
+
     public void Start()
     {
         IsFirstRun = !_store.Exists(SettingsFile);
         _settings = _store.Load<AppSettings>(SettingsFile);
+        var migrated = _settings.EnsureProjects();
+
         var savedHistory = _settings.PersistHistory ? _store.Load<List<Snippet>>(HistoryFile) : null;
         _history = new ClipboardHistory(_settings.HistoryLimit, savedHistory);
         _history.Changed += SaveHistory;
 
-        ApplySettings(_settings, save: IsFirstRun);
+        _usage = new UsageTracker(_store.Load<UsageData>(UsageFile));
+        _usage.Changed += () => { _usageSaveTimer.Stop(); _usageSaveTimer.Start(); };
+        _usageSaveTimer.Tick += (_, _) => SaveUsage();
+
+        ApplySettings(_settings, save: IsFirstRun || migrated);
 
         _overlay = new RadialMenuWindow();
         _overlay.Command += OnOverlayCommand;
 
         _taglistWindow = new TaglistWindow();
-        _taglistWindow.PasteRequested += text => CloseTaglist(text);
-        _taglistWindow.Cancelled += () => CloseTaglist(null);
+        _taglistWindow.PasteRequested += (values, isSequence) => CloseTaglist(values, isSequence);
+        _taglistWindow.Cancelled += () => CloseTaglist(null, false);
         _taglistWindow.SwitchToRingRequested += SwitchTaglistToRing;
         _taglistWindow.OpacityChanged += SetOpacity;
+        _taglistWindow.ToggleDoneRequested += row =>
+        {
+            if (_taglistProject != null) _usage.ToggleDone(_taglistProject.Name, row.Key);
+        };
+        _taglistWindow.NextProjectRequested += NextTaglistProject;
 
         _clipboard = new ClipboardWatcher();
         _clipboard.TextCopied += OnTextCopied;
@@ -88,6 +111,13 @@ public sealed class AppController : IDisposable
         _mouse = new MouseHook { Handler = OnMouse };
 
         _tray = new TrayIcon(this, HotkeySummary());
+
+        if (_settings.AutoUpdate)
+            _dispatcher.BeginInvoke(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(20)); // no competir con el arranque de Windows
+                await CheckForUpdatesAsync(silent: true);
+            });
     }
 
     // ───────────────────────── Configuración ─────────────────────────
@@ -96,13 +126,15 @@ public sealed class AppController : IDisposable
     {
         _settings = settings;
         _history.Limit = Math.Max(1, settings.HistoryLimit);
+        _history.MaxLength = Math.Max(20, settings.MaxHistoryTextLength);
         _history.Trim();
-        _taglist.Configure(settings.CurrentProfile());
+        _taglists.Clear(); // perfiles o archivos pudieron cambiar: se releen al usarlos
 
         Configure(_ringChord, settings.Hotkey);
         Configure(_taglistChord, settings.TaglistHotkey);
 
         _tray?.SetHotkeyText(HotkeySummary());
+        _tray?.RefreshProjects();
         if (save) _store.Save(SettingsFile, settings);
         if (save) SaveHistory();
     }
@@ -119,7 +151,7 @@ public sealed class AppController : IDisposable
     public void OpenSettings()
     {
         CloseRing(commit: false);
-        CloseTaglist(null);
+        CloseTaglist(null, false);
         if (_settingsWindow != null)
         {
             _settingsWindow.Activate();
@@ -132,14 +164,77 @@ public sealed class AppController : IDisposable
         _settingsWindow.Activate();
     }
 
+    public void OpenStats()
+    {
+        if (_statsWindow != null)
+        {
+            _statsWindow.Activate();
+            return;
+        }
+        var project = CurrentProject();
+        var book = project == null ? TaglistBook.Empty : CacheFor(project).GetBook();
+        _statsWindow = new StatsWindow(_usage, project?.Name, book, _settings.SecondsSavedTaglist, _settings.SecondsSavedRing);
+        _statsWindow.Closed += (_, _) => _statsWindow = null;
+        _statsWindow.Show();
+        _statsWindow.Activate();
+    }
+
+    /// <summary>Elige a mano el proyecto activo (desde la bandeja).</summary>
+    public void SetActiveProject(string name)
+    {
+        _settings.ActiveProject = name;
+        _store.Save(SettingsFile, _settings);
+        _tray?.RefreshProjects();
+    }
+
     public string ReloadTaglist()
     {
-        _taglist.Configure(_settings.CurrentProfile());
-        var book = _taglist.GetBook();
-        return _taglist.LastError ?? $"Taglist cargado: {book.Sheets.Count} hojas, {book.RowCount} filas.";
+        _taglists.Clear();
+        var project = CurrentProject();
+        if (project == null) return "No hay proyectos de taglist configurados.";
+        var cache = CacheFor(project);
+        var book = cache.GetBook();
+        return cache.LastError ?? $"{project.Name}: {book.Sheets.Count} hojas, {book.RowCount} filas.";
     }
 
     public void ClearHistory() => _history.Clear();
+
+    // ───────────────────────── Respaldo ─────────────────────────
+
+    /// <summary>Todo lo de la app en un archivo: configuración, historial y estadísticas.</summary>
+    public sealed class Backup
+    {
+        public string Version { get; set; } = UpdateChecker.Current.ToString();
+        public DateTime Created { get; set; } = DateTime.Now;
+        public AppSettings Settings { get; set; } = new();
+        public List<Snippet> History { get; set; } = new();
+        public UsageData Usage { get; set; } = new();
+    }
+
+    public void ExportBackup(string path) => JsonStore.ExportFile(path, new Backup
+    {
+        Settings = _settings,
+        History = _history.Items.ToList(),
+        Usage = _usage.Data,
+    });
+
+    /// <summary>Reemplaza todo por lo del respaldo. Lanza JsonException/IOException si el archivo no sirve.</summary>
+    public void ImportBackup(string path)
+    {
+        var backup = JsonStore.ImportFile<Backup>(path);
+        _statsWindow?.Close();
+
+        _history = new ClipboardHistory(backup.Settings.HistoryLimit, backup.History);
+        _history.Changed += SaveHistory;
+        _usage = new UsageTracker(backup.Usage);
+        _usage.Changed += () => { _usageSaveTimer.Stop(); _usageSaveTimer.Start(); };
+
+        backup.Settings.EnsureProjects();
+        ApplySettings(backup.Settings);
+        SaveUsage();
+    }
+
+    public void ToggleHistoryPin(string text) => _history.TogglePin(text);
 
     private void SetOpacity(double opacity)
     {
@@ -150,7 +245,43 @@ public sealed class AppController : IDisposable
     private void SaveHistory()
     {
         if (_settings.PersistHistory) _store.Save(HistoryFile, _history.Items.ToList());
-        else if (_store.Exists(HistoryFile)) _store.Save(HistoryFile, new List<Snippet>());
+        else _store.Save(HistoryFile, _history.Items.Where(s => s.Pinned).ToList()); // lo fijado siempre se guarda
+    }
+
+    private void SaveUsage()
+    {
+        _usageSaveTimer.Stop();
+        _store.Save(UsageFile, _usage.Data);
+    }
+
+    // ───────────────────────── Actualizaciones ─────────────────────────
+
+    /// <summary>Busca una versión nueva. silent = sin avisos si no hay nada o si falla.</summary>
+    public async Task CheckForUpdatesAsync(bool silent)
+    {
+        var (update, error) = await UpdateChecker.CheckAsync();
+        AvailableUpdate = update;
+        _tray?.SetUpdate(update);
+        if (update != null)
+            _tray?.ShowBalloon($"Hay una versión nueva ({update.Version}). Clic derecho en el ícono → «Actualizar».");
+        else if (!silent)
+            _tray?.ShowBalloon(error ?? $"Tienes la última versión ({UpdateChecker.Current}).");
+    }
+
+    public async Task InstallUpdateAsync()
+    {
+        if (AvailableUpdate == null) return;
+        try
+        {
+            _tray?.ShowBalloon("Descargando la actualización…");
+            SaveUsage();
+            await UpdateChecker.InstallAsync(AvailableUpdate);
+        }
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TaskCanceledException
+                                   or System.IO.IOException or System.ComponentModel.Win32Exception)
+        {
+            _tray?.ShowBalloon("No se pudo actualizar: " + ex.Message);
+        }
     }
 
     // ───────────────────────── Entrada global ─────────────────────────
@@ -223,6 +354,7 @@ public sealed class AppController : IDisposable
             case ChordSignal.Up: Do(s => s.Move(-1)); break;
             case ChordSignal.Down: Do(s => s.Move(1)); break;
             case ChordSignal.NextTemplate: Do(s => s.NextTemplate()); break;
+            case ChordSignal.TogglePin: TogglePinSelected(); break;
             case ChordSignal.PickSlice:
                 if (_session == null || result.Value >= _session.PageItems.Count) break;
                 _session.HoverSlice(result.Value);
@@ -244,6 +376,7 @@ public sealed class AppController : IDisposable
             case OverlayCommand.HoverSlice: Do(s => s.HoverSlice(value)); break;
             case OverlayCommand.NextTemplate: Do(s => s.NextTemplate()); break;
             case OverlayCommand.FilterChanged: Do(s => s.SetFilter(_overlay!.FilterText)); break;
+            case OverlayCommand.TogglePin: TogglePinSelected(); break;
         }
     }
 
@@ -262,18 +395,36 @@ public sealed class AppController : IDisposable
 
         _targetWindow = Win32.GetForegroundWindow();
         _openedAt = DateTime.UtcNow;
+        _session = BuildRingSession(_settings.LastSource);
 
+        _overlay.Open(Win32.CursorPosition(), _settings.Opacity);
+        Render();
+        _captureMouse = true;
+    }
+
+    private OverlaySession BuildRingSession(SourceKind source)
+    {
         var sources = new Dictionary<SourceKind, IReadOnlyList<PickItem>>
         {
             [SourceKind.History] = _history.Items.Select(PickItem.FromSnippet).ToList(),
             [SourceKind.Favorites] = _settings.Favorites.Select(PickItem.FromSnippet).ToList(),
         };
-        _session = new OverlaySession(sources, _settings.LastSource, _settings.SlicesPerPage,
-            _settings.Templates, _settings.ActiveTemplateIndex);
+        return new OverlaySession(sources, source, _settings.SlicesPerPage, _settings.Templates, _settings.ActiveTemplateIndex);
+    }
 
-        _overlay.Open(Win32.CursorPosition(), _settings.Opacity);
+    /// <summary>P (o Ctrl+P en modo buscador): fija o suelta el elemento apuntado del historial.</summary>
+    private void TogglePinSelected()
+    {
+        if (_session?.Selected is not { } item || _session.Source != SourceKind.History) return;
+        _history.TogglePin(item.Text);
+
+        // Rearmar la sesión para ver el nuevo orden, conservando fuente, filtro y plantilla.
+        var filter = _session.Filter;
+        var template = _session.TemplateIndex;
+        _session = BuildRingSession(SourceKind.History);
+        while (_session.TemplateIndex != template && _session.TemplateCount > 1) _session.NextTemplate();
+        if (filter.Length > 0) _session.SetFilter(filter);
         Render();
-        _captureMouse = true;
     }
 
     /// <summary>Se soltó el atajo: pegar, o pasar a modo buscador si fue sólo un toque.</summary>
@@ -303,6 +454,7 @@ public sealed class AppController : IDisposable
         if (_session == null) return;
 
         var text = commit ? _session.Preview : null;
+        var source = _session.Source;
 
         // Recordar la fuente y la plantilla para la próxima vez.
         _settings.LastSource = _session.Source;
@@ -313,7 +465,12 @@ public sealed class AppController : IDisposable
         _session = null;
         _overlay?.Dismiss();
         _store.Save(SettingsFile, _settings);
-        PasteIfAny(text);
+
+        if (!string.IsNullOrEmpty(text))
+        {
+            _usage.RecordRing(source.DisplayName(), text, _settings.SecondsSavedRing);
+            Paste(new[] { text }, sequence: false);
+        }
     }
 
     private void Hover(Win32.POINT pt)
@@ -347,6 +504,35 @@ public sealed class AppController : IDisposable
 
     // ───────────────────────── Taglist ─────────────────────────
 
+    private TaglistCache CacheFor(TaglistProject project)
+    {
+        if (!_taglists.TryGetValue(project.Name, out var cache))
+        {
+            cache = new TaglistCache();
+            var profile = _settings.ProfileFor(project);
+            // El caché lee el archivo del proyecto con la estructura del perfil.
+            cache.Configure(new TaglistProfile
+            {
+                Name = profile.Name,
+                FilePath = project.FilePath,
+                HiddenColumns = profile.HiddenColumns,
+                Sheets = profile.Sheets,
+            });
+            _taglists[project.Name] = cache;
+        }
+        return cache;
+    }
+
+    /// <summary>El proyecto que corresponde ahora (ventana activa, Excel abierto o el último usado).</summary>
+    private TaglistProject? CurrentProject() => ResolveProject().Project;
+
+    private (TaglistProject? Project, ProjectReason Reason) ResolveProject()
+    {
+        var foreground = _targetWindow != IntPtr.Zero ? _targetWindow : Win32.GetForegroundWindow();
+        return ProjectResolver.Resolve(_settings.Projects, Win32.WindowTitle(foreground),
+            Win32.VisibleWindowTitles(), _settings.ActiveProject);
+    }
+
     private void OpenTaglist()
     {
         if (_taglistWindow == null) return;
@@ -354,46 +540,91 @@ public sealed class AppController : IDisposable
         if (_taglistChord.UsesAltOrWin) Paster.SendDummyKey();
 
         _targetWindow = Win32.GetForegroundWindow();
-        var book = _taglist.GetBook();
-
-        string? empty = null;
-        if (!_taglist.HasFile) empty = "Elige el Excel del taglist en Configuración → Taglist (ícono junto al reloj).";
-        else if (!_taglist.HasSheets) empty = "El perfil no tiene hojas. En Configuración → Taglist presiona «Detectar hojas».";
-        else if (_taglist.LastError != null) empty = "Error al leer el taglist:\n" + _taglist.LastError;
-        else if (book.Sheets.Count == 0) empty = "Ninguna hoja del perfil se encontró en el archivo. ¿Cambió el nombre de las hojas?";
-
-        var session = new TaglistSession(book, _settings.LastSheet, _settings.Templates, _settings.ActiveTemplateIndex);
-        _taglistWindow.Open(session, Win32.CursorPosition(), _settings.Opacity, empty);
+        var (project, reason) = ResolveProject();
+        _taglistProject = project;
+        var (session, label, empty) = BuildTaglistSession(project, reason);
+        _taglistWindow.Open(session, Win32.CursorPosition(), _settings.Opacity, label, empty);
     }
 
-    private void CloseTaglist(string? text)
+    private (TaglistSession Session, string Label, string? Empty) BuildTaglistSession(TaglistProject? project, ProjectReason reason)
+    {
+        if (project == null)
+        {
+            var none = new TaglistSession(TaglistBook.Empty, null, _settings.Templates, _settings.ActiveTemplateIndex);
+            return (none, "", "Agrega un proyecto en Configuración → Taglist: elige el Excel y presiona «Detectar hojas».");
+        }
+
+        var cache = CacheFor(project);
+        var book = cache.GetBook();
+        var profile = _settings.ProfileFor(project);
+
+        string? empty = null;
+        if (!profile.Sheets.Any(s => s.Enabled)) empty = $"El perfil «{profile.Name}» no tiene hojas. En Configuración → Taglist presiona «Detectar hojas».";
+        else if (cache.LastError != null) empty = "Error al leer el taglist:\n" + cache.LastError;
+        else if (book.Sheets.Count == 0) empty = "Ninguna hoja del perfil se encontró en el archivo. ¿Cambió el nombre de las hojas?";
+
+        var context = new TaglistContext
+        {
+            RecentKeys = _usage.RecentRowKeys(project.Name),
+            IsDone = key => _usage.IsDone(project.Name, key),
+        };
+        var session = new TaglistSession(book, _settings.LastSheet, _settings.Templates, _settings.ActiveTemplateIndex, context);
+        var why = reason switch
+        {
+            ProjectReason.WindowTitle => " (ventana)",
+            ProjectReason.OpenInExcel => " (Excel)",
+            _ => "",
+        };
+        return (session, project.Name + why, empty);
+    }
+
+    /// <summary>F4 en el buscador: siguiente proyecto.</summary>
+    private void NextTaglistProject()
+    {
+        var usable = _settings.Projects.Where(p => !string.IsNullOrWhiteSpace(p.FilePath)).ToList();
+        if (usable.Count < 2 || _taglistWindow == null) return;
+        var index = _taglistProject == null ? -1 : usable.FindIndex(p => p.Name == _taglistProject.Name);
+        _taglistProject = usable[(index + 1) % usable.Count];
+        _settings.ActiveProject = _taglistProject.Name;
+        var (session, label, empty) = BuildTaglistSession(_taglistProject, ProjectReason.LastUsed);
+        _taglistWindow.Replace(session, label, empty);
+        _tray?.RefreshProjects();
+    }
+
+    private void CloseTaglist(IReadOnlyList<string>? values, bool isSequence)
     {
         if (_taglistWindow?.Session is not { } session) return;
 
-        // Recordar hoja y plantilla: la próxima vez sigues donde estabas.
+        // Recordar hoja, plantilla y proyecto: la próxima vez sigues donde estabas.
         if (session.Book.Sheets.Count > 0) _settings.LastSheet = session.SheetName;
         _settings.ActiveTemplateIndex = session.TemplateIndex;
+        if (_taglistProject != null) _settings.ActiveProject = _taglistProject.Name;
         _store.Save(SettingsFile, _settings);
 
+        if (values is { Count: > 0 } && session.Selected is { } row && _taglistProject != null)
+            _usage.RecordTaglist(_taglistProject.Name, row, string.Join(" ⇥ ", values),
+                isSequence ? values.Count : 1, _settings.SecondsSavedTaglist);
+
         _taglistWindow.Dismiss();
-        PasteIfAny(text);
+        if (values is { Count: > 0 }) Paste(values, isSequence);
     }
 
     /// <summary>Ctrl+Tab en el taglist: cambia a la ruleta (historial/favoritos) en modo buscador.</summary>
     private void SwitchTaglistToRing()
     {
         var target = _targetWindow;
-        CloseTaglist(null);
+        CloseTaglist(null, false);
         OpenRing();
         _targetWindow = target;
         EnterRingSearch();
     }
 
-    private void PasteIfAny(string? text)
+    private void Paste(IReadOnlyList<string> values, bool sequence)
     {
-        if (string.IsNullOrEmpty(text)) return;
-        _ignoreClipboardUntil = DateTime.UtcNow.AddSeconds(1.5);
-        _ = Paster.PasteAsync(text, _targetWindow, _settings.RestoreClipboardAfterPaste);
+        _ignoreClipboardUntil = DateTime.UtcNow.AddSeconds(sequence ? 1.5 + values.Count * 0.3 : 1.5);
+        _ = sequence
+            ? Paster.PasteSequenceAsync(values, _targetWindow, _settings.RestoreClipboardAfterPaste)
+            : Paster.PasteAsync(values[0], _targetWindow, _settings.RestoreClipboardAfterPaste);
     }
 
     private static bool IsModifierPhysicallyDown(int vk) => vk == ChordTracker.VkLWin
@@ -405,7 +636,8 @@ public sealed class AppController : IDisposable
     public void Dispose()
     {
         CloseRing(commit: false);
-        CloseTaglist(null);
+        CloseTaglist(null, false);
+        SaveUsage();
         _keyboard?.Dispose();
         _mouse?.Dispose();
         _clipboard?.Dispose();

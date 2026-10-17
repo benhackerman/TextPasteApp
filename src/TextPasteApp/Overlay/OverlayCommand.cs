@@ -12,4 +12,5 @@ public enum OverlayCommand
     HoverSlice,    // valor = sector (-1 = centro)
     NextTemplate,
     FilterChanged,
+    TogglePin,
 }

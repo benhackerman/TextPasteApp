@@ -81,3 +81,21 @@ public class TaglistLanguageColumnsTests
         Assert.Equal("Text_0", book.Sheets[0].Columns[book.Sheets[0].DescriptionColumn]);
     }
 }
+
+public class TaglistSequenceReaderTests
+{
+    private static readonly string Fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "taglist_ejemplo.xlsx");
+
+    [Fact]
+    public void ReadsSequenceColumnsByName()
+    {
+        var (sheets, hidden) = TaglistReader.Detect(Fixture);
+        sheets.Single(s => s.SheetName == "Act").Sequence = "No, Text_0, Unit Assignment";
+        var book = TaglistReader.ReadBook(new TaglistProfile { Sheets = sheets, HiddenColumns = hidden, FilePath = Fixture });
+
+        var act = book.Sheets[0];
+        Assert.Equal(new[] { "No", "Text_0", "Unit Assignment" }, act.SequenceColumns.Select(c => act.Columns[c]));
+        var s = new TaglistSession(book, "Act", new[] { new TextTemplate("", "{valor}") }, 0);
+        Assert.Equal(new[] { "1", "Bomba recepción", "1" }, s.SequenceValues);
+    }
+}

@@ -21,8 +21,13 @@ public sealed class TaglistSheet
 
     public List<TagRow> Rows { get; } = new();
 
-    public TaglistSheet(string name, string shortName, IReadOnlyList<string> columns, int pasteColumn)
+    /// <summary>Columnas que se pegan con Shift+Enter, en orden, separadas por Tab (vacía = sin secuencia).</summary>
+    public IReadOnlyList<int> SequenceColumns { get; }
+
+    public TaglistSheet(string name, string shortName, IReadOnlyList<string> columns, int pasteColumn,
+        IReadOnlyList<int>? sequenceColumns = null)
     {
+        SequenceColumns = sequenceColumns ?? Array.Empty<int>();
         Name = name;
         Short = string.IsNullOrWhiteSpace(shortName) ? name : shortName;
         Columns = columns;
@@ -87,6 +92,9 @@ public sealed class TagRow
     public string Title => this[Sheet.TitleColumn];
     public string Description => this[Sheet.DescriptionColumn];
     public string PasteValue => this[Sheet.PasteColumn];
+
+    /// <summary>Identifica la fila entre recargas del Excel (para estadísticas y marcas de "hecho").</summary>
+    public string Key => $"{Sheet.Name}|{PasteValue}|{Title}";
 
     /// <summary>Valores para la plantilla: {valor} = columna elegida, {tag}, {desc} y cada columna por su encabezado.</summary>
     public IReadOnlyDictionary<string, string> Fields(int selectedColumn)

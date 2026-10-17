@@ -10,7 +10,10 @@ public sealed class TaglistProfile
 {
     public string Name { get; set; } = "Mi taglist";
 
-    /// <summary>Ruta al .xlsx / .xlsm / .xls / .csv del proyecto actual.</summary>
+    /// <summary>
+    /// Archivo de ejemplo para «Detectar hojas». El archivo de cada proyecto se elige en <see cref="TaglistProject"/>.
+    /// (En versiones anteriores era el único archivo; se usa para crear el primer proyecto.)
+    /// </summary>
     public string FilePath { get; set; } = "";
 
     /// <summary>
@@ -43,6 +46,33 @@ public sealed class SheetProfile
     /// <summary>Columnas a mostrar, separadas por coma (nombre o letra). Vacío = todas las que tengan encabezado.</summary>
     public string VisibleColumns { get; set; } = "";
 
+    /// <summary>
+    /// Secuencia para llenar un formulario de una pasada (Shift+Enter): columnas separadas por coma.
+    /// Ejemplo: "No, Text_0, Unit Assignment" → pega No, Tab, Text_0, Tab, Unit Assignment.
+    /// </summary>
+    public string Sequence { get; set; } = "";
+
     [JsonIgnore]
     public string DisplayShort => string.IsNullOrWhiteSpace(ShortName) ? SheetName : ShortName;
+}
+
+/// <summary>
+/// Un proyecto: qué archivo de taglist usar y con qué perfil. Se elige solo según la ventana donde estás
+/// trabajando (palabras clave en el título) o según el Excel que tengas abierto.
+/// </summary>
+public sealed class TaglistProject
+{
+    public string Name { get; set; } = "Proyecto";
+
+    /// <summary>Ruta al taglist (.xlsx / .xlsm / .xls / .csv).</summary>
+    public string FilePath { get; set; } = "";
+
+    /// <summary>Nombre del perfil (estructura del taglist) que usa este proyecto.</summary>
+    public string Profile { get; set; } = "";
+
+    /// <summary>
+    /// Palabras clave separadas por coma. Si el título de la ventana donde vas a pegar contiene alguna,
+    /// se usa este proyecto. Ejemplo: "Envasado, Planta Vino".
+    /// </summary>
+    public string WindowMatch { get; set; } = "";
 }

@@ -18,6 +18,12 @@ public sealed class PickItem
 
     public IReadOnlyDictionary<string, string> Fields { get; }
 
+    /// <summary>Fijado en el historial (se dibuja con una marca).</summary>
+    public bool Pinned { get; init; }
+
+    /// <summary>Texto original (para fijar/soltar y para las estadísticas).</summary>
+    public string Text => Fields.TryGetValue("texto", out var t) ? t : Subtitle;
+
     internal string NormalizedTitle { get; }
     internal string NormalizedAll { get; }
 
@@ -41,7 +47,7 @@ public sealed class PickItem
             ["tag"] = title,
             ["desc"] = "",
         };
-        return new PickItem(title, s.Text, "", fields);
+        return new PickItem(title, s.Text, "", fields) { Pinned = s.Pinned };
     }
 
     private static string FirstLine(string text)

@@ -156,8 +156,18 @@ public static partial class TaglistReader
         if (pasteIndex >= 0 && !columns.Contains(pasteIndex)) columns.Insert(0, pasteIndex);
         if (columns.Count == 0) columns.Add(Math.Max(0, pasteIndex));
 
+        // Secuencia (Shift+Enter): columnas por nombre o letra; si alguna estaba oculta se agrega igual.
+        var sequence = new List<int>();
+        foreach (var spec in config.Sequence.Split(',', ';'))
+        {
+            var i = ResolveColumn(headers, spec);
+            if (i < 0) continue;
+            if (!columns.Contains(i)) columns.Add(i);
+            sequence.Add(columns.IndexOf(i));
+        }
+
         var names = columns.Select(i => i < headers.Count && headers[i].Length > 0 ? headers[i] : ColumnLetter(i)).ToList();
-        var sheet = new TaglistSheet(name, config.ShortName, names, Math.Max(0, columns.IndexOf(pasteIndex)));
+        var sheet = new TaglistSheet(name, config.ShortName, names, Math.Max(0, columns.IndexOf(pasteIndex)), sequence);
 
         while (reader.Read())
         {

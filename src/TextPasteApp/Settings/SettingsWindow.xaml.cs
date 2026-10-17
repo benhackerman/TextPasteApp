@@ -37,6 +37,9 @@ public partial class SettingsWindow : Window
     private ObservableCollection<SheetProfile> _sheets = new();
     private bool _loadingProfiles;
 
+    // Proyectos
+    private readonly ObservableCollection<TaglistProject> _projects;
+
     public SettingsWindow(AppController controller, AppSettings settings, ClipboardHistory history)
     {
         InitializeComponent();
@@ -49,11 +52,14 @@ public partial class SettingsWindow : Window
         _templates = new ObservableCollection<TextTemplate>(settings.Templates);
         _profiles = settings.TaglistProfiles;
         _profile = settings.CurrentProfile();
+        _projects = new ObservableCollection<TaglistProject>(settings.Projects);
 
         LoadGeneral();
         FavoritesGrid.ItemsSource = _favorites;
         TemplatesGrid.ItemsSource = _templates;
         LoadProfiles(_profile.Name);
+        ProjectsGrid.ItemsSource = _projects;
+        RefreshProfileChoices();
         UpdateTemplatePreview();
     }
 
@@ -72,6 +78,10 @@ public partial class SettingsWindow : Window
         HistoryLimitBox.Text = _settings.HistoryLimit.ToString();
         SlicesBox.ItemsSource = new[] { 6, 8, 10, 12 };
         SlicesBox.SelectedItem = _settings.SlicesPerPage is 6 or 8 or 10 or 12 ? _settings.SlicesPerPage : 8;
+        MaxLengthBox.Text = _settings.MaxHistoryTextLength.ToString();
+        SecondsTaglistBox.Text = _settings.SecondsSavedTaglist.ToString();
+        SecondsRingBox.Text = _settings.SecondsSavedRing.ToString();
+        AutoUpdateBox.IsChecked = _settings.AutoUpdate;
         RefreshHistoryList();
     }
 
@@ -84,7 +94,127 @@ public partial class SettingsWindow : Window
     }
 
     private void RefreshHistoryList() =>
-        HistoryList.ItemsSource = _history.Items.Select(s => s.Text.Replace("\r", "").Replace('\n', ' ')).ToList();
+        HistoryList.ItemsSource = _history.Items.Select(s => (s.Pinned ? "• " : "") + s.Text.Replace("\r", "").Replace('\n', ' ')).ToList();
+
+    private void HistoryPin_Click(object sender, RoutedEventArgs e)
+    {
+        var index = HistoryList.SelectedIndex;
+        if (index < 0 || index >= _history.Items.Count) return;
+        var text = _history.Items[index].Text;
+        _controller.ToggleHistoryPin(text);
+        RefreshHistoryList();
+        HistoryList.SelectedIndex = _history.Items.ToList().FindIndex(s => s.Text == text);
+    }
+
+    private void OpenStats_Click(object sender, RoutedEventArgs e) => _controller.OpenStats();
+
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        StatusText.Text = "Buscando…";
+        await _controller.CheckForUpdatesAsync(silent: false);
+        StatusText.Text = _controller.AvailableUpdate is { } u
+            ? $"Hay una versión nueva ({u.Version}): clic derecho en el ícono de la bandeja → Actualizar."
+            : $"Versión actual: {Update.UpdateChecker.Current}.";
+    }
+
+    private void ExportBackup_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Exportar respaldo de TextPaste",
+            FileName = $"TextPaste-respaldo-{DateTime.Now:yyyy-MM-dd}.json",
+            Filter = "Respaldo de TextPaste (*.json)|*.json",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            _controller.ExportBackup(dialog.FileName);
+            StatusText.Text = "Respaldo exportado (incluye lo guardado hasta ahora; los cambios sin guardar de esta ventana no).";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusText.Text = "No se pudo exportar: " + ex.Message;
+        }
+    }
+
+    private void ImportBackup_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Title = "Importar respaldo de TextPaste", Filter = "Respaldo de TextPaste (*.json)|*.json" };
+        if (dialog.ShowDialog(this) != true) return;
+        if (MessageBox.Show(this, "Esto reemplaza toda tu configuración, historial y estadísticas por las del respaldo. ¿Continuar?",
+                "TextPaste", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            _controller.ImportBackup(dialog.FileName);
+            MessageBox.Show(this, "Respaldo importado.", "TextPaste");
+            Close();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            StatusText.Text = "No se pudo importar: " + ex.Message;
+        }
+    }
+
+    // ───────────────────────── Proyectos ─────────────────────────
+
+    private void RefreshProfileChoices() => ProjectProfileColumn.ItemsSource = _profiles.Select(p => p.Name).ToList();
+
+    private void ProjectAdd_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Elegir el taglist del proyecto",
+            Filter = "Taglist (*.xlsx;*.xlsm;*.xls;*.csv)|*.xlsx;*.xlsm;*.xls;*.csv|Todos los archivos|*.*",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        StoreProfile();
+        var baseName = Core.Logic.ProjectResolver.FileNameOf(dialog.FileName);
+        var name = baseName;
+        for (var n = 2; _projects.Any(p => p.Name == name); n++) name = $"{baseName} {n}";
+        var project = new TaglistProject { Name = name, FilePath = dialog.FileName, Profile = _profile.Name };
+        _projects.Add(project);
+        ProjectsGrid.SelectedItem = project;
+
+        // Si el perfil todavía no sabe nada de las hojas, se detectan con este archivo.
+        if (_profile.Sheets.Count == 0)
+        {
+            FilePathBox.Text = dialog.FileName;
+            Detect_Click(sender, e);
+            StatusText.Text = $"Proyecto «{name}» agregado. Se detectaron las hojas en el perfil «{_profile.Name}»: revísalas en «Perfiles de taglist».";
+        }
+        else
+        {
+            StatusText.Text = $"Proyecto «{name}» agregado con el perfil «{_profile.Name}».";
+        }
+    }
+
+    private void ProjectFile_Click(object sender, RoutedEventArgs e)
+    {
+        ProjectsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        if (ProjectsGrid.SelectedItem is not TaglistProject project) { StatusText.Text = "Elige un proyecto de la lista."; return; }
+        var dialog = new OpenFileDialog
+        {
+            Title = $"Archivo del taglist para «{project.Name}»",
+            Filter = "Taglist (*.xlsx;*.xlsm;*.xls;*.csv)|*.xlsx;*.xlsm;*.xls;*.csv|Todos los archivos|*.*",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        project.FilePath = dialog.FileName;
+        ProjectsGrid.Items.Refresh();
+    }
+
+    private void ProjectUse_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProjectsGrid.SelectedItem is not TaglistProject project) { StatusText.Text = "Elige un proyecto de la lista."; return; }
+        _settings.ActiveProject = project.Name;
+        StatusText.Text = $"«{project.Name}» queda como proyecto por defecto (se usa cuando ninguna regla reconoce la ventana).";
+    }
+
+    private void ProjectRemove_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProjectsGrid.SelectedItem is TaglistProject project) _projects.Remove(project);
+    }
 
     private bool IsTaglistBox(object sender) => (sender as FrameworkElement)?.Tag as string == "taglist";
 
@@ -201,6 +331,7 @@ public partial class SettingsWindow : Window
 
     private void LoadProfiles(string select)
     {
+        if (ProjectProfileColumn != null) RefreshProfileChoices();
         _loadingProfiles = true;
         ProfileBox.ItemsSource = _profiles.Select(p => p.Name).ToList();
         ProfileBox.SelectedItem = _profiles.Any(p => p.Name == select) ? select : _profiles[0].Name;
@@ -285,7 +416,9 @@ public partial class SettingsWindow : Window
         }
         StoreProfile();
         if (_settings.ActiveProfile == _profile.Name) _settings.ActiveProfile = name;
+        foreach (var project in _projects.Where(p => p.Profile == _profile.Name)) project.Profile = name;
         _profile.Name = name;
+        ProjectsGrid.Items.Refresh();
         LoadProfiles(name);
     }
 
@@ -428,6 +561,7 @@ public partial class SettingsWindow : Window
     {
         FavoritesGrid.CommitEdit(DataGridEditingUnit.Row, true);
         TemplatesGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        ProjectsGrid.CommitEdit(DataGridEditingUnit.Row, true);
         StoreProfile();
 
         _settings.Hotkey = _hotkey;
@@ -444,6 +578,24 @@ public partial class SettingsWindow : Window
         _settings.ActiveTemplateIndex = Math.Clamp(_settings.ActiveTemplateIndex, 0, _settings.Templates.Count - 1);
         _settings.TaglistProfiles = _profiles;
         _settings.ActiveProfile = _profile.Name;
+        _settings.MaxHistoryTextLength = Math.Clamp(ParseInt(MaxLengthBox.Text, 2000), 20, 100_000);
+        _settings.SecondsSavedTaglist = Math.Clamp(ParseInt(SecondsTaglistBox.Text, 20), 0, 600);
+        _settings.SecondsSavedRing = Math.Clamp(ParseInt(SecondsRingBox.Text, 4), 0, 600);
+        _settings.AutoUpdate = AutoUpdateBox.IsChecked == true;
+
+        // Proyectos: nombres únicos y perfil válido.
+        var names = new HashSet<string>();
+        foreach (var project in _projects)
+        {
+            project.Name = string.IsNullOrWhiteSpace(project.Name) ? "Proyecto" : project.Name.Trim();
+            var unique = project.Name;
+            for (var k = 2; !names.Add(unique); k++) unique = $"{project.Name} {k}";
+            project.Name = unique;
+            if (!_profiles.Any(p => p.Name == project.Profile)) project.Profile = _profiles[0].Name;
+        }
+        _settings.Projects = _projects.ToList();
+        if (!_settings.Projects.Any(p => p.Name == _settings.ActiveProject))
+            _settings.ActiveProject = _settings.Projects.FirstOrDefault()?.Name ?? "";
 
         try
         {

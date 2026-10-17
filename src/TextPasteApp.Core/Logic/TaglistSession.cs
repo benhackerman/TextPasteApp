@@ -2,6 +2,18 @@ using TextPasteApp.Core.Models;
 
 namespace TextPasteApp.Core.Logic;
 
+/// <summary>Lo que el buscador necesita saber de tu uso: filas recientes y filas ya hechas.</summary>
+public sealed class TaglistContext
+{
+    public static readonly TaglistContext Empty = new();
+
+    /// <summary>Claves de fila (TagRow.Key) usadas hace poco, la más nueva primero. Sin texto escrito, salen arriba.</summary>
+    public IReadOnlyList<string> RecentKeys { get; init; } = Array.Empty<string>();
+
+    /// <summary>¿La fila ya está parametrizada? (se muestra con ✓).</summary>
+    public Func<string, bool> IsDone { get; init; } = _ => false;
+}
+
 /// <summary>
 /// Estado del buscador del taglist mientras está abierto.
 ///
@@ -16,6 +28,7 @@ public sealed class TaglistSession
     public const int MaxResults = 500;
 
     private readonly IReadOnlyList<TextTemplate> _templates;
+    private readonly TaglistContext _context;
     private int _fieldOverride = -1;
 
     public TaglistBook Book { get; }
@@ -28,10 +41,18 @@ public sealed class TaglistSession
     public int RowIndex { get; private set; }
     public int TemplateIndex { get; private set; }
 
-    public TaglistSession(TaglistBook book, string? startSheet, IReadOnlyList<TextTemplate> templates, int templateIndex)
+    /// <summary>
+    /// True si en la hoja elegida no había coincidencias y se está mostrando el resultado de todas las hojas
+    /// (así no tienes que adivinar en qué hoja está un tag).
+    /// </summary>
+    public bool IsAutoAll { get; private set; }
+
+    public TaglistSession(TaglistBook book, string? startSheet, IReadOnlyList<TextTemplate> templates, int templateIndex,
+        TaglistContext? context = null)
     {
         Book = book;
         _templates = templates;
+        _context = context ?? TaglistContext.Empty;
         TemplateIndex = templates.Count == 0 ? 0 : Math.Clamp(templateIndex, 0, templates.Count - 1);
         SheetIndex = IndexOfSheet(startSheet);
         Refilter();
@@ -57,6 +78,30 @@ public sealed class TaglistSession
 
     /// <summary>Texto final que se pega (con la plantilla aplicada), o null si no hay fila.</summary>
     public string? Preview => Selected is { } row ? TemplateEngine.Apply(Template.Pattern, row.Fields(FieldIndex)) : null;
+
+    /// <summary>
+    /// Valores de la secuencia (Shift+Enter) de la fila elegida, o null si la hoja no tiene secuencia.
+    /// La plantilla se aplica a la columna de pegar.
+    /// </summary>
+    public IReadOnlyList<string>? SequenceValues
+    {
+        get
+        {
+            if (Selected is not { } row || row.Sheet.SequenceColumns.Count == 0) return null;
+            return row.Sheet.SequenceColumns
+                .Select(c => c == row.Sheet.PasteColumn ? TemplateEngine.Apply(Template.Pattern, row.Fields(c)) : row[c])
+                .ToList();
+        }
+    }
+
+    public bool IsDone(TagRow row) => _context.IsDone(row.Key);
+
+    /// <summary>Filas hechas / total en la hoja elegida (o en todo el libro con «Todas»).</summary>
+    public (int Done, int Total) Progress()
+    {
+        var rows = RowsOf(SheetIndex).ToList();
+        return (rows.Count(IsDone), rows.Count);
+    }
 
     /// <summary>
     /// Autocompletar: si alguna celda del primer resultado empieza con lo escrito, devuelve lo que falta
@@ -142,7 +187,9 @@ public sealed class TaglistSession
     }
 
     /// <summary>Cuántas coincidencias tiene la búsqueda actual en una hoja (para los contadores de las pestañas).</summary>
-    public int CountIn(int sheetIndex) => Search(RowsOf(sheetIndex), TextSearch.Normalize(Query)).Count;
+    public int CountIn(int sheetIndex) => Query.Length == 0
+        ? RowsOf(sheetIndex).Count()
+        : Search(RowsOf(sheetIndex), TextSearch.Normalize(Query)).Count;
 
     /// <summary>Filas visibles alrededor de la selección.</summary>
     public (int Start, IReadOnlyList<TagRow> Rows) Window(int visible)
@@ -154,10 +201,35 @@ public sealed class TaglistSession
 
     private void Refilter()
     {
-        Results = Search(RowsOf(SheetIndex), TextSearch.Normalize(Query));
+        var q = TextSearch.Normalize(Query);
+        Results = q.Length == 0 ? RecentFirst(RowsOf(SheetIndex)) : Search(RowsOf(SheetIndex), q);
+        IsAutoAll = false;
+        if (Results.Count == 0 && q.Length > 0 && SheetIndex != AllSheets)
+        {
+            var everywhere = Search(RowsOf(AllSheets), q);
+            if (everywhere.Count > 0)
+            {
+                Results = everywhere;
+                IsAutoAll = true;
+            }
+        }
         RowIndex = 0;
         _fieldOverride = -1;
     }
+
+    /// <summary>Sin texto escrito: primero las filas que usaste hace poco, después el resto en el orden del Excel.</summary>
+    private IReadOnlyList<TagRow> RecentFirst(IEnumerable<TagRow> rows)
+    {
+        var list = rows.Take(MaxResults * 20).ToList();
+        if (_context.RecentKeys.Count == 0) return list;
+        var byKey = new Dictionary<string, TagRow>();
+        foreach (var row in list) byKey.TryAdd(row.Key, row);
+        var recent = _context.RecentKeys.Where(byKey.ContainsKey).Select(k => byKey[k]).ToList();
+        var set = new HashSet<TagRow>(recent);
+        return recent.Concat(list.Where(r => !set.Contains(r))).ToList();
+    }
+
+    public bool IsRecent(TagRow row) => Query.Length == 0 && _context.RecentKeys.Contains(row.Key);
 
     private IEnumerable<TagRow> RowsOf(int sheetIndex) => sheetIndex == AllSheets
         ? Book.Sheets.SelectMany(s => s.Rows)

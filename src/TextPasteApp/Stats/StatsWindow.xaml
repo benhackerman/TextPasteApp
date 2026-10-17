@@ -1,0 +1,64 @@
+<Window x:Class="TextPasteApp.Stats.StatsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TextPaste — Estadísticas" Width="860" Height="680" MinWidth="680" MinHeight="520"
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="13" Background="White">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBrush}" Padding="18,12">
+            <StackPanel>
+                <TextBlock Text="Estadísticas" Foreground="White" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock x:Name="SinceText" Foreground="#FF9AA0AA" Margin="0,2,0,0" />
+            </StackPanel>
+        </Border>
+        <Border DockPanel.Dock="Bottom" Padding="14,8" BorderBrush="#FFE5E7EB" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Cerrar" IsCancel="True" Click="Close_Click" Margin="0" />
+                <TextBlock x:Name="FootText" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+            </DockPanel>
+        </Border>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="18,14">
+                <!-- Tarjetas -->
+                <UniformGrid x:Name="Cards" Columns="4" />
+
+                <!-- Gráfico -->
+                <TextBlock Text="Pegados por día · últimos 30 días" Style="{StaticResource SectionTitle}" Margin="0,18,0,6" />
+                <Canvas x:Name="Chart" Height="150" Background="Transparent" SizeChanged="Chart_SizeChanged" />
+                <Grid Margin="0,2,0,0">
+                    <TextBlock x:Name="ChartStart" Foreground="{StaticResource MutedBrush}" FontSize="11" HorizontalAlignment="Left" />
+                    <TextBlock Text="hoy" Foreground="{StaticResource MutedBrush}" FontSize="11" HorizontalAlignment="Right" />
+                </Grid>
+
+                <Grid Margin="0,18,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="Lo que más pegas" Style="{StaticResource SectionTitle}" />
+                        <DataGrid x:Name="TopGrid" IsReadOnly="True" AutoGenerateColumns="False" HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal" RowHeight="24" MaxHeight="360" CanUserResizeRows="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Texto" Binding="{Binding Label}" Width="*" />
+                                <DataGridTextColumn Header="Fuente" Binding="{Binding Source}" Width="80" />
+                                <DataGridTextColumn Header="Veces" Binding="{Binding Count}" Width="55" />
+                                <DataGridTextColumn Header="Último uso" Binding="{Binding LastUsed, StringFormat=dd-MM HH:mm}" Width="85" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock x:Name="ProjectTitle" Text="Avance del proyecto" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Style="{StaticResource Help}"
+                                   Text="Una fila queda ✓ hecha al pegarla. En el buscador, Ctrl+D la marca o desmarca a mano." />
+                        <StackPanel x:Name="ProgressPanel" />
+                        <Button x:Name="ResetDoneButton" Content="Reiniciar marcas de este proyecto" Click="ResetDone_Click"
+                                HorizontalAlignment="Left" Margin="0,10,0,0" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

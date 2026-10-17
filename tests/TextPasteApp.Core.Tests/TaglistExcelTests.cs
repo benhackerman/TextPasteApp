@@ -61,3 +61,23 @@ public class TaglistExcelTests
         Assert.Equal(new[] { "CO2.FIT1", "CO1.MV1" }, s.Results.Select(r => r.Title));
     }
 }
+
+public class TaglistLanguageColumnsTests
+{
+    private static readonly string Fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "taglist_ejemplo.xlsx");
+
+    [Fact]
+    public void SuggestsHidingOtherLanguagesAndHidesThem()
+    {
+        var (sheets, hidden) = TaglistReader.Detect(Fixture);
+        Assert.Equal("Text_1", hidden);
+
+        var withAll = TaglistReader.ReadBook(new TaglistProfile { FilePath = Fixture, Sheets = sheets });
+        Assert.Contains("Text_1", withAll.Sheets[0].Columns);
+
+        var book = TaglistReader.ReadBook(new TaglistProfile { FilePath = Fixture, Sheets = sheets, HiddenColumns = hidden });
+        Assert.DoesNotContain("Text_1", book.Sheets[0].Columns);
+        Assert.Contains("Text_0", book.Sheets[0].Columns);
+        Assert.Equal("Text_0", book.Sheets[0].Columns[book.Sheets[0].DescriptionColumn]);
+    }
+}

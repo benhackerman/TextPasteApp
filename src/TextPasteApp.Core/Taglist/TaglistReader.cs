@@ -47,7 +47,29 @@ public static partial class TaglistReader
     /// Revisa el archivo y propone un perfil por hoja: adivina la fila de encabezados
     /// (la primera con 2 o más textos) y la columna a pegar (la que empieza con N°, Nº, NUM, ID…).
     /// </summary>
-    public static List<SheetProfile> DetectSheets(string path)
+    public static List<SheetProfile> DetectSheets(string path) => Detect(path).Sheets;
+
+    /// <summary>
+    /// Igual que <see cref="DetectSheets"/>, y además sugiere columnas a ocultar: si hay textos en varios
+    /// idiomas (Text_0, Text_1, Text_2…) propone ocultar todos menos Text_0.
+    /// </summary>
+    public static (List<SheetProfile> Sheets, string SuggestedHiddenColumns) Detect(string path)
+    {
+        var allHeaders = new List<string>();
+        var sheets = DetectSheets(path, allHeaders);
+        var hasText0 = allHeaders.Any(h => h.Equals("Text_0", StringComparison.OrdinalIgnoreCase));
+        var languages = allHeaders
+            .Where(h => LanguageColumn().IsMatch(h))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(h => h, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return (sheets, hasText0 ? string.Join(", ", languages) : "");
+    }
+
+    [GeneratedRegex(@"^Text_[1-9]$", RegexOptions.IgnoreCase)]
+    private static partial Regex LanguageColumn();
+
+    private static List<SheetProfile> DetectSheets(string path, List<string> allHeaders)
     {
         using var stream = OpenShared(path);
         using var reader = CreateReader(path, stream);
@@ -58,6 +80,7 @@ public static partial class TaglistReader
             var name = SheetName(reader, index++);
             var (headerRow, headers) = GuessHeader(reader);
             if (headers.Count == 0) continue; // hoja vacía
+            allHeaders.AddRange(headers);
 
             var numberColumn = headers.FindIndex(h => NumberHeader().IsMatch(h.Trim()));
             var paste = Math.Max(0, numberColumn);
@@ -71,7 +94,7 @@ public static partial class TaglistReader
 
             // Quedan desmarcadas las hojas sin datos (sólo encabezados o filas reservadas)
             // y las que no tienen columna de número (suelen ser de configuración, no de módulos).
-            var rows = ReadRows(reader, name, profile, headers).Rows.Count;
+            var rows = ReadRows(reader, name, profile, headers, Array.Empty<string>()).Rows.Count;
             profile.Enabled = rows > 0 && numberColumn >= 0;
             result.Add(profile);
         } while (reader.NextResult());
@@ -87,6 +110,7 @@ public static partial class TaglistReader
             throw new FileNotFoundException("No se encontró el taglist", profile.FilePath);
 
         var wanted = profile.Sheets.Where(s => s.Enabled).ToList();
+        var hidden = profile.HiddenColumns.Split(',', ';').Select(h => h.Trim()).Where(h => h.Length > 0).ToArray();
         var sheets = new List<TaglistSheet>();
 
         using var stream = OpenShared(profile.FilePath);
@@ -96,7 +120,7 @@ public static partial class TaglistReader
         {
             var name = SheetName(reader, index++);
             var config = wanted.FirstOrDefault(s => SameName(s.SheetName, name));
-            if (config != null) sheets.Add(ReadRows(reader, name, config, ReadHeaderRow(reader, config.HeaderRow)));
+            if (config != null) sheets.Add(ReadRows(reader, name, config, ReadHeaderRow(reader, config.HeaderRow), hidden));
         } while (reader.NextResult());
 
         // Mismo orden que en el perfil (así Ctrl+1…9 siempre apunta a la misma hoja).
@@ -109,7 +133,8 @@ public static partial class TaglistReader
     }
 
     /// <summary>Lee las filas de datos (el lector ya pasó la fila de encabezados).</summary>
-    private static TaglistSheet ReadRows(IExcelDataReader reader, string name, SheetProfile config, List<string> headers)
+    private static TaglistSheet ReadRows(IExcelDataReader reader, string name, SheetProfile config, List<string> headers,
+        IReadOnlyCollection<string> hiddenColumns)
     {
         // Columnas a mostrar: las pedidas, o todas las que tengan encabezado.
         var columns = new List<int>();
@@ -123,6 +148,9 @@ public static partial class TaglistReader
         }
         if (columns.Count == 0)
             columns = Enumerable.Range(0, headers.Count).Where(i => headers[i].Length > 0).ToList();
+
+        // Columnas ocultas del perfil (aplican a todas las hojas).
+        columns.RemoveAll(i => i < headers.Count && hiddenColumns.Contains(headers[i], StringComparer.OrdinalIgnoreCase));
 
         var pasteIndex = ResolveColumn(headers, config.PasteColumn);
         if (pasteIndex >= 0 && !columns.Contains(pasteIndex)) columns.Insert(0, pasteIndex);

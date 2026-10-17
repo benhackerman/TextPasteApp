@@ -13,6 +13,12 @@ public sealed class TaglistProfile
     /// <summary>Ruta al .xlsx / .xlsm / .xls / .csv del proyecto actual.</summary>
     public string FilePath { get; set; } = "";
 
+    /// <summary>
+    /// Columnas que se ocultan en TODAS las hojas, separadas por coma (por ejemplo "Text_1, Text_2" cuando
+    /// el taglist tiene los textos en varios idiomas y sólo usas Text_0). No se muestran ni se buscan.
+    /// </summary>
+    public string HiddenColumns { get; set; } = "";
+
     public List<SheetProfile> Sheets { get; set; } = new();
 }
 

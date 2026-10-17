@@ -213,6 +213,7 @@ public partial class SettingsWindow : Window
     {
         ProfileNameBox.Text = _profile.Name;
         FilePathBox.Text = _profile.FilePath;
+        HiddenColumnsBox.Text = _profile.HiddenColumns;
         _sheets = new ObservableCollection<SheetProfile>(_profile.Sheets);
         SheetsGrid.ItemsSource = _sheets;
         PreviewGrid.ItemsSource = null;
@@ -223,6 +224,7 @@ public partial class SettingsWindow : Window
     {
         SheetsGrid.CommitEdit(DataGridEditingUnit.Row, true);
         _profile.FilePath = FilePathBox.Text.Trim().Trim('"');
+        _profile.HiddenColumns = HiddenColumnsBox.Text.Trim();
         _profile.Sheets = _sheets.ToList();
     }
 
@@ -348,7 +350,7 @@ public partial class SettingsWindow : Window
         StoreProfile();
         try
         {
-            var detected = TaglistReader.DetectSheets(_profile.FilePath);
+            var (detected, suggestedHidden) = TaglistReader.Detect(_profile.FilePath);
             var merged = new List<SheetProfile>();
             foreach (var old in _profile.Sheets)
                 if (detected.Any(d => Same(d.SheetName, old.SheetName))) merged.Add(old);
@@ -357,10 +359,16 @@ public partial class SettingsWindow : Window
 
             var missing = _profile.Sheets.Count(o => !detected.Any(d => Same(d.SheetName, o.SheetName)));
             _profile.Sheets = merged;
+            var hiddenNote = "";
+            if (string.IsNullOrWhiteSpace(_profile.HiddenColumns) && suggestedHidden.Length > 0)
+            {
+                _profile.HiddenColumns = suggestedHidden; // otros idiomas: se muestra y se busca sólo Text_0
+                hiddenNote = $" · se ocultan {suggestedHidden} (otros idiomas)";
+            }
             ShowProfile();
             StatusText.Text = $"{detected.Count} hojas en el archivo · {added.Count} nuevas" +
                               (missing > 0 ? $" · {missing} del perfil ya no existen (se quitaron)" : "") +
-                              ". Revisa la columna a pegar de cada una.";
+                              hiddenNote + ". Revisa la columna a pegar de cada una.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException
                                    or ArgumentException or ExcelDataReader.Exceptions.ExcelReaderException)

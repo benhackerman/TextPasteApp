@@ -3,16 +3,14 @@ using TextPasteApp.Core.Models;
 namespace TextPasteApp.Core.Logic;
 
 /// <summary>
-/// Estado de la ruleta mientras está abierta: qué fuente se ve, qué página, qué está seleccionado,
-/// el filtro de búsqueda y la plantilla activa. La ventana sólo dibuja lo que esta clase dice.
-///
-/// Dos formas de mostrar:
-///  - Ruleta (Historial, Favoritos): sectores alrededor del puntero, la rueda cambia de página.
-///  - Lista (Taglist): lista tipo "tambor" en el centro, la rueda avanza fila por fila.
+/// Estado de la ruleta mientras está abierta: qué fuente se ve (Historial / Favoritos), qué página,
+/// qué está seleccionado, el filtro de búsqueda y la plantilla activa. La ventana sólo dibuja lo que esta clase dice.
+/// La rueda cambia de página; el mouse apunta a un sector.
+/// (El taglist tiene su propio buscador: ver <see cref="TaglistSession"/>.)
 /// </summary>
 public sealed class OverlaySession
 {
-    private static readonly SourceKind[] SourceOrder = { SourceKind.History, SourceKind.Favorites, SourceKind.Taglist };
+    private static readonly SourceKind[] SourceOrder = { SourceKind.History, SourceKind.Favorites };
 
     private readonly IReadOnlyDictionary<SourceKind, IReadOnlyList<PickItem>> _sources;
     private readonly IReadOnlyList<TextTemplate> _templates;
@@ -28,7 +26,6 @@ public sealed class OverlaySession
     /// <summary>True si el usuario hizo algo (mover, rueda, tecla). Sirve para distinguir un "toque" de un "mantener".</summary>
     public bool Interacted { get; private set; }
 
-    public bool IsListMode => Source == SourceKind.Taglist;
     public int PageCount => Math.Max(1, (Items.Count + SlicesPerPage - 1) / SlicesPerPage);
     public PickItem? Selected => SelectedIndex >= 0 && SelectedIndex < Items.Count ? Items[SelectedIndex] : null;
     public TextTemplate Template => _templates.Count > 0 ? _templates[TemplateIndex] : new TextTemplate("", "{valor}");
@@ -61,18 +58,6 @@ public sealed class OverlaySession
     public IReadOnlyList<PickItem> PageItems =>
         Items.Skip(Page * SlicesPerPage).Take(SlicesPerPage).ToList();
 
-    /// <summary>
-    /// Ventana de filas alrededor de la selección (para la lista del taglist).
-    /// Devuelve el índice de la primera fila y las filas.
-    /// </summary>
-    public (int Start, IReadOnlyList<PickItem> Rows) ListWindow(int visibleRows)
-    {
-        if (Items.Count == 0) return (0, Array.Empty<PickItem>());
-        var center = Math.Max(0, SelectedIndex);
-        var start = Math.Clamp(center - visibleRows / 2, 0, Math.Max(0, Items.Count - visibleRows));
-        return (start, Items.Skip(start).Take(visibleRows).ToList());
-    }
-
     public void NextSource(int direction = 1)
     {
         var i = Array.IndexOf(SourceOrder, Source);
@@ -96,24 +81,13 @@ public sealed class OverlaySession
         if (Filter.Length > 0 && Items.Count > 0) Select(0);
     }
 
-    /// <summary>
-    /// Rueda del mouse. En lista avanza filas; en ruleta cambia de página.
-    /// steps positivo = hacia abajo / página siguiente.
-    /// </summary>
+    /// <summary>Rueda del mouse: página siguiente (steps positivo) o anterior.</summary>
     public void Scroll(int steps)
     {
         Interacted = true;
         if (Items.Count == 0) return;
-
-        if (IsListMode)
-        {
-            Select(Math.Clamp(Math.Max(0, SelectedIndex) + steps, 0, Items.Count - 1));
-        }
-        else
-        {
-            Page = ((Page + steps) % PageCount + PageCount) % PageCount;
-            SelectedIndex = -1; // el mouse vuelve a elegir sobre la nueva página
-        }
+        Page = ((Page + steps) % PageCount + PageCount) % PageCount;
+        SelectedIndex = -1; // el mouse vuelve a elegir sobre la nueva página
     }
 
     /// <summary>Teclas de flecha / AvPág: mueven la selección uno a uno en cualquier modo.</summary>
@@ -128,14 +102,13 @@ public sealed class OverlaySession
     /// <summary>El mouse apunta a un sector de la ruleta (-1 = centro, nada).</summary>
     public void HoverSlice(int slice)
     {
-        if (IsListMode) return;
         var index = slice < 0 ? -1 : Page * SlicesPerPage + slice;
         var newIndex = index < Items.Count ? index : -1;
         if (newIndex != SelectedIndex) Interacted = true;
         SelectedIndex = newIndex;
     }
 
-    /// <summary>Hace clic / apunta directo a una fila de la lista.</summary>
+    /// <summary>Selecciona un elemento por índice absoluto.</summary>
     public void Select(int index)
     {
         SelectedIndex = index >= 0 && index < Items.Count ? index : -1;
@@ -153,6 +126,6 @@ public sealed class OverlaySession
         var all = _sources.TryGetValue(Source, out var list) ? list : Array.Empty<PickItem>();
         Items = TextSearch.Filter(all, Filter);
         Page = 0;
-        SelectedIndex = IsListMode && Items.Count > 0 ? 0 : -1;
+        SelectedIndex = -1;
     }
 }

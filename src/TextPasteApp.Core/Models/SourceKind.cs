@@ -1,11 +1,10 @@
 namespace TextPasteApp.Core.Models;
 
-/// <summary>De dónde salen los textos que muestra la ruleta.</summary>
+/// <summary>Fuentes de la ruleta. El taglist tiene su propia ventana con buscador.</summary>
 public enum SourceKind
 {
     History,
     Favorites,
-    Taglist,
 }
 
 public static class SourceKindExtensions
@@ -14,7 +13,6 @@ public static class SourceKindExtensions
     {
         SourceKind.History => "Historial",
         SourceKind.Favorites => "Favoritos",
-        SourceKind.Taglist => "Taglist",
         _ => kind.ToString(),
     };
 }

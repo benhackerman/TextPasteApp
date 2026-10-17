@@ -10,7 +10,6 @@ public enum OverlayCommand
     Move,          // valor = pasos (flechas)
     Scroll,        // valor = pasos (rueda)
     HoverSlice,    // valor = sector (-1 = centro)
-    SelectRow,     // valor = índice absoluto de fila
     NextTemplate,
     FilterChanged,
 }

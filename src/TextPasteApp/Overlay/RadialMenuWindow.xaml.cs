@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -21,8 +20,6 @@ public partial class RadialMenuWindow : Window
     // Medidas en píxeles lógicos (DIP). El centro del canvas es el centro de la ruleta.
     private const double Size = 520, C = Size / 2;
     private const double InnerR = 92, OuterR = 222, DeadZone = 55;
-    private const int ListRows = 9;
-    private const double RowH = 30;
 
     private static readonly Brush Bg = Frozen("#EE16181E");
     private static readonly Brush SliceFill = Frozen("#E6242833");
@@ -36,8 +33,6 @@ public partial class RadialMenuWindow : Window
     private IntPtr _hwnd;
     private Win32.POINT _centerPx;
     private bool _sticky;
-    private readonly List<(Rect Rect, int Index)> _rowHits = new();
-    private bool _isListMode;
 
     /// <summary>Lo que el usuario pidió (modo buscador). El int es el valor asociado (pasos, sector, fila).</summary>
     public event Action<OverlayCommand, int>? Command;
@@ -84,7 +79,7 @@ public partial class RadialMenuWindow : Window
     // ───────────────────────── Mostrar / ocultar ─────────────────────────
 
     /// <summary>Muestra la ruleta centrada en el puntero (sin quitarle el foco a nadie).</summary>
-    internal void Open(Win32.POINT cursor)
+    internal void Open(Win32.POINT cursor, double opacity)
     {
         _sticky = false;
         SearchBox.Text = "";
@@ -94,7 +89,7 @@ public partial class RadialMenuWindow : Window
         Opacity = 0;          // evita un parpadeo en la posición anterior
         Show();
         PlaceAt(cursor, moveCursor: true);
-        Opacity = 1;
+        Opacity = Math.Clamp(opacity, 0.4, 1);
     }
 
     /// <summary>Pasa a modo buscador: toma el foco para poder escribir.</summary>
@@ -125,18 +120,10 @@ public partial class RadialMenuWindow : Window
     /// </summary>
     private void PlaceAt(Win32.POINT cursor, bool moveCursor)
     {
-        var (work, scale) = Win32.MonitorAt(cursor);
-        var sizePx = (int)Math.Round(Size * scale);
-        var half = sizePx / 2;
-
-        var cx = work.Right - work.Left >= sizePx ? Math.Clamp(cursor.X, work.Left + half, work.Right - half) : cursor.X;
-        var cy = work.Bottom - work.Top >= sizePx ? Math.Clamp(cursor.Y, work.Top + half, work.Bottom - half) : cursor.Y;
-
-        Win32.SetWindowPos(_hwnd, Win32.HWND_TOPMOST, cx - half, cy - half, sizePx, sizePx, Win32.SWP_NOACTIVATE);
-        if (moveCursor && (cx != cursor.X || cy != cursor.Y))
-            Win32.SetCursorPos(cx, cy);
-
-        _centerPx = new Win32.POINT { X = cx, Y = cy };
+        var center = WindowPlacement.CenterOn(_hwnd, cursor, Size, Size);
+        if (moveCursor && (center.X != cursor.X || center.Y != cursor.Y))
+            Win32.SetCursorPos(center.X, center.Y);
+        _centerPx = center;
     }
 
     // ───────────────────────── Hit testing ─────────────────────────
@@ -151,41 +138,23 @@ public partial class RadialMenuWindow : Window
 
     private int SliceAtDip(Point p, int sliceCount) => RadialGeometry.SliceAt(p.X - C, p.Y - C, sliceCount, DeadZone);
 
-    private int RowAt(Point p)
-    {
-        foreach (var (rect, index) in _rowHits)
-            if (rect.Contains(p)) return index;
-        return -1;
-    }
-
     // ───────────────────────── Eventos (modo buscador) ─────────────────────────
 
     private int _lastSliceCount = 8;
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
-        if (!_sticky || _isListMode) return;
+        if (!_sticky) return;
         Command?.Invoke(OverlayCommand.HoverSlice, SliceAtDip(e.GetPosition(Root), _lastSliceCount));
     }
 
     private void OnLeftClick(object sender, MouseButtonEventArgs e)
     {
         if (!_sticky) return;
-        var p = e.GetPosition(Root);
-        if (_isListMode)
-        {
-            var row = RowAt(p);
-            if (row < 0) return;
-            Command?.Invoke(OverlayCommand.SelectRow, row);
-            Command?.Invoke(OverlayCommand.Confirm, 0);
-        }
-        else
-        {
-            var slice = SliceAtDip(p, _lastSliceCount);
-            if (slice < 0) return;
-            Command?.Invoke(OverlayCommand.HoverSlice, slice);
-            Command?.Invoke(OverlayCommand.Confirm, 0);
-        }
+        var slice = SliceAtDip(e.GetPosition(Root), _lastSliceCount);
+        if (slice < 0) return;
+        Command?.Invoke(OverlayCommand.HoverSlice, slice);
+        Command?.Invoke(OverlayCommand.Confirm, 0);
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -201,8 +170,8 @@ public partial class RadialMenuWindow : Window
             Key.Tab => (shift ? OverlayCommand.PrevSource : OverlayCommand.NextSource, 0),
             Key.Up => (OverlayCommand.Move, -1),
             Key.Down => (OverlayCommand.Move, 1),
-            Key.PageUp => (OverlayCommand.Scroll, _isListMode ? -ListRows : -1),
-            Key.PageDown => (OverlayCommand.Scroll, _isListMode ? ListRows : 1),
+            Key.PageUp => (OverlayCommand.Scroll, -1),
+            Key.PageDown => (OverlayCommand.Scroll, 1),
             Key.F2 => (OverlayCommand.NextTemplate, 0),
             Key.T when ctrl => (OverlayCommand.NextTemplate, 0),
             _ => null,
@@ -221,13 +190,10 @@ public partial class RadialMenuWindow : Window
     public void Render(OverlaySession s, string? emptyMessage = null)
     {
         Drawing.Children.Clear();
-        _rowHits.Clear();
-        _isListMode = s.IsListMode;
         _lastSliceCount = s.SlicesPerPage;
 
         var accent = AccentFor(s.Source);
-        if (s.IsListMode) DrawList(s, accent, emptyMessage);
-        else DrawRing(s, accent, emptyMessage);
+        DrawRing(s, accent, emptyMessage);
         DrawHint(s);
 
         Canvas.SetLeft(SearchBox, C - SearchBox.Width / 2);
@@ -259,6 +225,12 @@ public partial class RadialMenuWindow : Window
             });
 
             if (!has) continue;
+            if (!_sticky && i < 9)
+            {
+                // Número para elegir el sector con el teclado (1–9).
+                var (nx, ny) = RadialGeometry.PointAt(mid, OuterR - 16);
+                AddText((i + 1).ToString(), C + nx - 10, C + ny - 8, 20, 10, isSel ? DarkText : Muted, FontWeights.SemiBold);
+            }
             var (x, y) = RadialGeometry.PointAt(mid, (InnerR + OuterR) / 2 + 4);
             AddText(items[i].Title, C + x - 56, C + y - 18, 112, 13, isSel ? DarkText : TextBrush,
                 isSel ? FontWeights.SemiBold : FontWeights.Normal, maxLines: 2, height: 36, center: true);
@@ -285,67 +257,12 @@ public partial class RadialMenuWindow : Window
             AddChip(s.Template.Name, C + 48, accent);
     }
 
-    private void DrawList(OverlaySession s, Brush accent, string? emptyMessage)
-    {
-        AddEllipse(OuterR + 8, Frozen("#33000000"), null, 0);
-        AddEllipse(OuterR, Bg, accent, 2);
-
-        AddText(s.Source.DisplayName().ToUpperInvariant(), C - 100, 62, 200, 11, accent, FontWeights.Bold);
-        DrawSourceDots(s, 80, accent);
-        var countText = s.Filter.Length > 0 ? $"{s.Items.Count} coincidencias" : $"{s.Items.Count} filas";
-        AddText(countText, C - 100, 90, 200, 11, Muted, FontWeights.Normal);
-
-        if (s.Items.Count == 0)
-        {
-            AddText(emptyMessage ?? "Sin resultados", C - 140, C - 30, 280, 13, Muted, FontWeights.Normal,
-                maxLines: 4, height: 80, center: true);
-            return;
-        }
-
-        var (start, rows) = s.ListWindow(ListRows);
-        var top = C - ListRows * RowH / 2 + 4;
-        for (var r = 0; r < rows.Count; r++)
-        {
-            var index = start + r;
-            var y = top + r * RowH;
-            var isSel = index == s.SelectedIndex;
-            var distance = Math.Abs(index - s.SelectedIndex);
-            var opacity = isSel ? 1 : Math.Max(0.25, 1 - distance * 0.16); // efecto "tambor"
-
-            if (isSel)
-            {
-                var bar = new Rectangle { Width = 330, Height = RowH - 2, RadiusX = 7, RadiusY = 7, Fill = accent };
-                Canvas.SetLeft(bar, C - 165);
-                Canvas.SetTop(bar, y);
-                Drawing.Children.Add(bar);
-            }
-
-            var fg = isSel ? DarkText : TextBrush;
-            var tag = AddText(rows[r].Title, C - 152, y + 5, 180, 14, fg, isSel ? FontWeights.Bold : FontWeights.Normal);
-            var value = AddText(rows[r].Subtitle, C + 30, y + 5, 122, 14, fg, FontWeights.SemiBold, align: TextAlignment.Right);
-            value.FontFamily = new FontFamily("Consolas");
-            tag.Opacity = value.Opacity = opacity;
-
-            _rowHits.Add((new Rect(C - 165, y, 330, RowH), index));
-        }
-
-        var footer = top + ListRows * RowH + 6;
-        if (s.Selected is { } sel)
-        {
-            if (sel.Description.Length > 0)
-                AddText(sel.Description, C - 150, footer, 300, 11, Muted, FontWeights.Normal);
-            AddText("→ " + s.Preview, C - 150, footer + 17, 300, 14, accent, FontWeights.Bold);
-        }
-        if (s.TemplateIndex > 0)
-            AddChip(s.Template.Name, footer + 40, accent);
-    }
-
-    /// <summary>Tres puntos que indican la fuente activa (la activa es una píldora alargada).</summary>
+    /// <summary>Puntos que indican la fuente activa (la activa es una píldora alargada).</summary>
     private void DrawSourceDots(OverlaySession s, double y, Brush accent)
     {
-        var kinds = new[] { SourceKind.History, SourceKind.Favorites, SourceKind.Taglist };
+        var kinds = new[] { SourceKind.History, SourceKind.Favorites };
         const double dot = 6, pill = 16, spacing = 6;
-        var x = C - (pill + 2 * dot + 2 * spacing) / 2;
+        var x = C - (pill + dot + spacing) / 2;
         foreach (var kind in kinds)
         {
             var active = kind == s.Source;
@@ -369,9 +286,7 @@ public partial class RadialMenuWindow : Window
     {
         var text = _sticky
             ? "Escribe para buscar · ↑↓ mover · Enter pegar · Tab fuente · F2 plantilla · Esc"
-            : s.IsListMode
-                ? "Suelta para pegar · Rueda: mover · Tab: fuente · Clic der.: plantilla · Esc"
-                : "Suelta para pegar · Rueda: página · Tab: fuente · Clic der.: plantilla · Esc";
+            : "Suelta para pegar · Rueda: página · Tab: fuente · 1–8: directo · Clic der.: plantilla · Esc";
 
         var block = new TextBlock { Text = text, FontSize = 11, Foreground = Muted };
         var pill = new Border
@@ -469,8 +384,7 @@ public partial class RadialMenuWindow : Window
     public static Brush AccentFor(SourceKind kind) => kind switch
     {
         SourceKind.History => Frozen("#FF4C9AFF"),
-        SourceKind.Favorites => Frozen("#FFFFB547"),
-        _ => Frozen("#FF3DDC97"),
+        _ => Frozen("#FFFFB547"),
     };
 
     private static Brush Frozen(string hex)

@@ -4,7 +4,7 @@ namespace TextPasteApp.Core.Models;
 
 /// <summary>
 /// Un elemento elegible en la ruleta, sin importar de qué fuente venga.
-/// Fields son los valores que puede usar una plantilla: {valor}, {tag}, {desc}, {texto} y las columnas del Excel.
+/// Fields son los valores que puede usar una plantilla: {valor}, {tag}, {desc}, {texto}.
 /// </summary>
 public sealed class PickItem
 {
@@ -42,18 +42,6 @@ public sealed class PickItem
             ["desc"] = "",
         };
         return new PickItem(title, s.Text, "", fields);
-    }
-
-    public static PickItem FromTagRow(TagRow row)
-    {
-        var fields = new Dictionary<string, string>(row.Cells, StringComparer.OrdinalIgnoreCase)
-        {
-            ["valor"] = row.Value,
-            ["tag"] = row.Tag,
-            ["desc"] = row.Description,
-            ["texto"] = row.Value,
-        };
-        return new PickItem(row.Tag, row.Value, row.Description, fields);
     }
 
     private static string FirstLine(string text)

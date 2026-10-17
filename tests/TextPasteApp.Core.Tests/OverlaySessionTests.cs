@@ -5,14 +5,12 @@ namespace TextPasteApp.Core.Tests;
 
 public class OverlaySessionTests
 {
-    private static OverlaySession Create(int historyCount = 10, int tagCount = 100)
+    private static OverlaySession Create(int historyCount = 10)
     {
         var sources = new Dictionary<SourceKind, IReadOnlyList<PickItem>>
         {
             [SourceKind.History] = Enumerable.Range(0, historyCount).Select(i => PickItem.FromSnippet(new Snippet($"h{i}"))).ToList(),
-            [SourceKind.Favorites] = new List<PickItem>(),
-            [SourceKind.Taglist] = Enumerable.Range(0, tagCount)
-                .Select(i => PickItem.FromTagRow(new TagRow { Tag = $"XV-{1000 + i}", Value = $"{i}" })).ToList(),
+            [SourceKind.Favorites] = new List<PickItem> { PickItem.FromSnippet(new Snippet("ON")) },
         };
         var templates = new List<TextTemplate> { new("Plano", "{valor}"), new("Cmd", "MC_{valor}.CMD") };
         return new OverlaySession(sources, SourceKind.History, 8, templates, 0);
@@ -48,45 +46,28 @@ public class OverlaySessionTests
     }
 
     [Fact]
-    public void TaglistIsListModeWithFirstRowSelected()
+    public void TabTogglesBetweenHistoryAndFavorites()
     {
         var s = Create();
-        s.NextSource(); // Favoritos
-        s.NextSource(); // Taglist
-        Assert.True(s.IsListMode);
-        Assert.Equal("0", s.Preview);
-
-        s.Scroll(5);
-        Assert.Equal("5", s.Preview);
-        s.Scroll(-50);
-        Assert.Equal("0", s.Preview);
+        s.NextSource();
+        Assert.Equal(SourceKind.Favorites, s.Source);
+        s.NextSource();
+        Assert.Equal(SourceKind.History, s.Source);
     }
 
     [Fact]
-    public void FilterAndTemplate()
+    public void FilterSelectsFirstAndTemplateApplies()
     {
         var s = Create();
-        s.SetSource(SourceKind.Taglist);
-        s.SetFilter("xv1042");
-        Assert.Equal("42", s.Preview);
+        s.SetFilter("h7");
+        Assert.Equal("h7", s.Preview);
 
         s.NextTemplate();
-        Assert.Equal("MC_42.CMD", s.Preview);
+        Assert.Equal("MC_h7.CMD", s.Preview);
     }
 
     [Fact]
-    public void ListWindowCentersOnSelection()
-    {
-        var s = Create();
-        s.SetSource(SourceKind.Taglist);
-        s.Scroll(50);
-        var (start, rows) = s.ListWindow(9);
-        Assert.Equal(46, start);
-        Assert.Equal(9, rows.Count);
-    }
-
-    [Fact]
-    public void ArrowKeysMoveAcrossPagesInRing()
+    public void ArrowKeysMoveAcrossPages()
     {
         var s = Create();
         s.Move(-1); // sin selección, hacia atrás = último elemento

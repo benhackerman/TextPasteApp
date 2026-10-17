@@ -51,6 +51,7 @@ public class ChordTrackerTests
         Assert.Equal(ChordSignal.NextSource, t.OnKey(VkTab, true).Signal);
         Assert.Equal(ChordSignal.Down, t.OnKey(VkDown, true).Signal);
         Assert.Equal(ChordSignal.NextTemplate, t.OnKey(VkT, true).Signal);
+        Assert.Equal(new ChordResult(true, ChordSignal.PickSlice, 2), t.OnKey(0x33, true)); // tecla 3
         Assert.Equal(new ChordResult(true, ChordSignal.None), t.OnKey(VkA, true));
         Assert.Equal(new ChordResult(true, ChordSignal.Cancel), t.OnKey(VkEscape, true));
         Assert.False(t.IsActive);

@@ -6,25 +6,43 @@ Al soltar el atajo se pega lo elegido en la app donde estabas (SCADA, Excel, edi
 Pensado para parametrizar módulos de control desde un **taglist en Excel** sin andar buscando
 a mano el número de actuador que corresponde a cada tag del P&ID.
 
-| Fuente | Qué muestra | Cómo se navega |
-|---|---|---|
-| **Historial** | Lo último que copiaste (Ctrl+C) | Ruleta de 8 sectores; la rueda cambia de página |
-| **Favoritos** | Lista fija que tú ajustas | Igual que el historial |
-| **Taglist** | Filas del Excel: busca por tag, pega el valor | Lista tipo tambor; la rueda avanza fila por fila; buscador |
+Hay **dos atajos**:
 
-Las **plantillas** envuelven el valor antes de pegarlo: `PLC1.MC_{valor}.CMD` + valor `23` → `PLC1.MC_23.CMD`.
-
-## Uso
+### Ruleta — `Ctrl + Shift + Espacio` (historial y favoritos)
 
 | Acción | Gesto |
 |---|---|
-| Abrir | Mantener **Ctrl + Shift** y presionar **Espacio** (configurable) |
-| Elegir | Mover el mouse hacia un sector · rueda · flechas |
+| Abrir | Mantener **Ctrl + Shift** y presionar **Espacio** |
+| Elegir | Mover el mouse hacia un sector · teclas **1–8** · flechas |
 | Pegar | **Soltar** Ctrl + Shift (o clic izquierdo, o Enter) |
-| Cambiar de fuente | **Tab** o clic medio |
+| Página siguiente | **Rueda** |
+| Historial ↔ Favoritos | **Tab** o clic medio |
 | Cambiar de plantilla | **Clic derecho** o **T** |
-| Buscar (modo buscador) | **Toque rápido** del atajo: la ruleta queda abierta con un cuadro de búsqueda |
+| Buscar | **Toque rápido** del atajo: queda abierta con un cuadro de búsqueda |
 | Cancelar | **Esc** o soltar con el mouse en el centro |
+
+### Taglist — `Ctrl + Shift + T` (buscador con autocompletar)
+
+1. Clic en el campo del SCADA donde va el módulo.
+2. **Ctrl + Shift + T** → se abre el buscador en la última hoja usada, listo para escribir.
+3. Escribe lo que sepas: tag, número, parte de la descripción. Busca en **todas las columnas** de la fila.
+4. **↑ ↓** cambian de fila · **Rueda** elige qué columna de esa fila pegar (parte en la columna por defecto de la hoja) · **→** acepta el autocompletado.
+5. **Enter** pega y se cierra.
+
+| Otras teclas | |
+|---|---|
+| **Tab / Shift+Tab** | Hoja siguiente / anterior («Todas» busca en el libro completo) |
+| **Ctrl + 1…9** | Hoja directa (Ctrl + 0 = Todas) |
+| **F2 / Ctrl+T / botón** | Cambiar plantilla |
+| **Ctrl + Rueda** | Opacidad de la ventana |
+| **Ctrl + Tab** | Pasar a la ruleta (historial/favoritos) |
+| **Esc** o clic fuera | Cancelar |
+
+**Perfiles de taglist:** describen cómo es tu Excel (qué hojas usar, fila de encabezados, columna a pegar,
+columnas visibles). Se configuran una vez con «Detectar hojas»; en cada proyecto nuevo sólo cambias el archivo.
+Se pueden exportar/importar para usarlos en otro computador.
+
+Las **plantillas** envuelven el valor antes de pegarlo: `PLC1.MC_{valor}.CMD` + valor `23` → `PLC1.MC_23.CMD`.
 
 La configuración se abre con doble clic en el ícono de la bandeja (junto al reloj).
 Todo se guarda en `%AppData%\TextPasteApp\` (`settings.json`, `history.json`, `errors.log`).
@@ -46,15 +64,16 @@ dotnet test tests/TextPasteApp.Core.Tests
 ```
 src/
   TextPasteApp.Core/        Lógica pura, sin Windows → se puede testear en cualquier lado
-    Models/                 Datos: AppSettings, Snippet, TagRow, TextTemplate, PickItem
-    Logic/                  ChordTracker (atajo), OverlaySession (estado de la ruleta),
+    Models/                 Datos: AppSettings, TaglistProfile, TaglistBook/Sheet/Row, Snippet, TextTemplate
+    Logic/                  ChordTracker (atajos), OverlaySession (ruleta), TaglistSession (buscador),
                             TemplateEngine, TextSearch, ClipboardHistory, RadialGeometry
-    Taglist/                Lectura de Excel/CSV (ExcelDataReader) + caché que recarga si cambia
+    Taglist/                Lectura de Excel/CSV con varias hojas, detección de encabezados, caché
     Storage/                JsonStore: guarda/lee JSON en %AppData%
   TextPasteApp/             La app WPF (code-behind, sin MVVM)
     AppController.cs        El "cerebro": conecta hooks → sesión → ventana → pegar
     Native/                 Todo lo de Win32: hooks de teclado/mouse, portapapeles, Ctrl+V
     Overlay/                La ruleta (se dibuja en código desde OverlaySession)
+    Taglist/                Ventana del buscador del taglist
     Settings/               Ventana de configuración
     Tray/                   Ícono de la bandeja
 tests/TextPasteApp.Core.Tests/   Tests xUnit de la lógica

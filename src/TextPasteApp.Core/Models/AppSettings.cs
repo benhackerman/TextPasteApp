@@ -5,7 +5,14 @@ namespace TextPasteApp.Core.Models;
 /// <summary>Toda la configuración de la app. Se guarda como settings.json en %AppData%\TextPasteApp.</summary>
 public sealed class AppSettings
 {
+    /// <summary>Atajo de la ruleta (historial / favoritos): mantener y soltar.</summary>
     public HotkeySettings Hotkey { get; set; } = new();
+
+    /// <summary>Atajo que abre directo el taglist con el buscador.</summary>
+    public HotkeySettings TaglistHotkey { get; set; } = new() { Ctrl = true, Shift = true, Key = "T" };
+
+    /// <summary>Opacidad de la ruleta y del taglist (0.4 a 1).</summary>
+    public double Opacity { get; set; } = 0.95;
 
     /// <summary>Cuántos textos copiados se recuerdan.</summary>
     public int HistoryLimit { get; set; } = 50;
@@ -31,7 +38,21 @@ public sealed class AppSettings
         new Snippet("OFF", "OFF"),
     };
 
-    public TaglistSettings Taglist { get; set; } = new();
+    /// <summary>Perfiles ("plantillas") de taglist. Normalmente uno solo que reutilizas en cada proyecto.</summary>
+    public List<TaglistProfile> TaglistProfiles { get; set; } = new() { new TaglistProfile() };
+
+    /// <summary>Nombre del perfil en uso.</summary>
+    public string ActiveProfile { get; set; } = "Mi taglist";
+
+    /// <summary>Última hoja usada en el taglist ("" = todas).</summary>
+    public string LastSheet { get; set; } = "";
+
+    /// <summary>El perfil activo (o el primero si el nombre no existe).</summary>
+    public TaglistProfile CurrentProfile()
+    {
+        if (TaglistProfiles.Count == 0) TaglistProfiles.Add(new TaglistProfile());
+        return TaglistProfiles.FirstOrDefault(p => p.Name == ActiveProfile) ?? TaglistProfiles[0];
+    }
 
     public List<TextTemplate> Templates { get; set; } = new()
     {
@@ -69,26 +90,4 @@ public sealed class HotkeySettings
         parts.Add(Key);
         return string.Join(" + ", parts);
     }
-}
-
-/// <summary>Dónde está el taglist y qué columnas usar.</summary>
-public sealed class TaglistSettings
-{
-    /// <summary>Ruta al .xlsx / .xlsm / .xls / .csv.</summary>
-    public string FilePath { get; set; } = "";
-
-    /// <summary>Nombre de la hoja. Vacío = la primera.</summary>
-    public string SheetName { get; set; } = "";
-
-    /// <summary>Fila donde están los encabezados (empieza en 1).</summary>
-    public int HeaderRow { get; set; } = 1;
-
-    /// <summary>Columna con el tag del P&amp;ID. Nombre del encabezado o letra (A, B, ...).</summary>
-    public string TagColumn { get; set; } = "A";
-
-    /// <summary>Columna con el valor a pegar (número de actuador / módulo).</summary>
-    public string ValueColumn { get; set; } = "B";
-
-    /// <summary>Columna con la descripción (opcional).</summary>
-    public string DescriptionColumn { get; set; } = "";
 }

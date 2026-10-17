@@ -9,14 +9,17 @@ public class JsonStoreTests
     public void SavesAndLoadsSettings()
     {
         var store = new JsonStore(Path.Combine(Path.GetTempPath(), $"tpa-{Guid.NewGuid():N}"));
-        var settings = new AppSettings { HistoryLimit = 7, LastSource = SourceKind.Taglist };
+        var settings = new AppSettings { HistoryLimit = 7, LastSource = SourceKind.Favorites, Opacity = 0.8 };
+        settings.CurrentProfile().Sheets.Add(new SheetProfile { SheetName = "Actuadores", PasteColumn = "N° ACT" });
         settings.Favorites.Add(new Snippet("Válvula", "V"));
 
         store.Save("settings.json", settings);
         var loaded = store.Load<AppSettings>("settings.json");
 
         Assert.Equal(7, loaded.HistoryLimit);
-        Assert.Equal(SourceKind.Taglist, loaded.LastSource);
+        Assert.Equal(SourceKind.Favorites, loaded.LastSource);
+        Assert.Equal(0.8, loaded.Opacity);
+        Assert.Equal("N° ACT", loaded.CurrentProfile().Sheets[0].PasteColumn);
         Assert.Equal("Válvula", loaded.Favorites[^1].Text);
         Directory.Delete(store.Folder, true);
     }

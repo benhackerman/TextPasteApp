@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
@@ -11,21 +12,21 @@ using TextPasteApp.Core.Taglist;
 using TextPasteApp.Native;
 using TextPasteApp.Overlay;
 using TextPasteApp.Settings;
+using TextPasteApp.Taglist;
 using TextPasteApp.Tray;
 
 namespace TextPasteApp;
 
 /// <summary>
 /// El "cerebro" de la app. Conecta las piezas:
-///   teclado/mouse (hooks) → ChordTracker → OverlaySession → RadialMenuWindow → Paster
+///   teclado/mouse (hooks) → ChordTracker → sesión → ventana → Paster
 /// y además guarda el historial del portapapeles y la configuración.
 ///
-/// Flujo normal ("mantener"):
-///   1. Mantienes Ctrl+Shift y presionas Espacio → se abre la ruleta bajo el puntero.
-///   2. Mueves el mouse hacia un sector / giras la rueda / Tab cambia de fuente.
-///   3. Sueltas Ctrl+Shift → se pega lo elegido en la ventana donde estabas.
-///
-/// Flujo "buscador": si tocas el atajo rápido sin mover nada, la ruleta queda abierta con un cuadro de búsqueda.
+/// Dos atajos:
+///   • Ruleta (Ctrl+Shift+Espacio): mantener, apuntar con el mouse, soltar = pegar. Historial y favoritos.
+///     Un toque rápido la deja abierta con buscador.
+///   • Taglist (Ctrl+Shift+T): abre el buscador del taglist con el foco en el cuadro de texto.
+///     Escribes, ↑↓ fila, rueda columna, Tab hoja, Enter pega.
 /// </summary>
 public sealed class AppController : IDisposable
 {
@@ -36,7 +37,8 @@ public sealed class AppController : IDisposable
     private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
     private readonly JsonStore _store = new();
     private readonly TaglistCache _taglist = new();
-    private readonly ChordTracker _chord = new(0, false, false, false, false);
+    private readonly ChordTracker _ringChord = new(0, false, false, false, false);
+    private readonly ChordTracker _taglistChord = new(0, false, false, false, false);
 
     private AppSettings _settings = new();
     private ClipboardHistory _history = new();
@@ -44,6 +46,7 @@ public sealed class AppController : IDisposable
     private MouseHook? _mouse;
     private ClipboardWatcher? _clipboard;
     private RadialMenuWindow? _overlay;
+    private TaglistWindow? _taglistWindow;
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
 
@@ -71,14 +74,21 @@ public sealed class AppController : IDisposable
         _overlay = new RadialMenuWindow();
         _overlay.Command += OnOverlayCommand;
 
+        _taglistWindow = new TaglistWindow();
+        _taglistWindow.PasteRequested += text => CloseTaglist(text);
+        _taglistWindow.Cancelled += () => CloseTaglist(null);
+        _taglistWindow.SwitchToRingRequested += SwitchTaglistToRing;
+        _taglistWindow.OpacityChanged += SetOpacity;
+
         _clipboard = new ClipboardWatcher();
         _clipboard.TextCopied += OnTextCopied;
 
-        _chord.IsKeyDown = IsModifierPhysicallyDown;
+        _ringChord.IsKeyDown = IsModifierPhysicallyDown;
+        _taglistChord.IsKeyDown = IsModifierPhysicallyDown;
         _keyboard = new KeyboardHook { Handler = OnKey };
         _mouse = new MouseHook { Handler = OnMouse };
 
-        _tray = new TrayIcon(this, _settings.Hotkey.ToString());
+        _tray = new TrayIcon(this, HotkeySummary());
     }
 
     // ───────────────────────── Configuración ─────────────────────────
@@ -88,20 +98,29 @@ public sealed class AppController : IDisposable
         _settings = settings;
         _history.Limit = Math.Max(1, settings.HistoryLimit);
         _history.Trim();
-        _taglist.Configure(settings.Taglist);
+        _taglist.Configure(settings.CurrentProfile());
 
-        var key = Enum.TryParse<Key>(settings.Hotkey.Key, out var k) ? k : Key.Space;
-        _chord.Configure(KeyInterop.VirtualKeyFromKey(key),
-            settings.Hotkey.Ctrl, settings.Hotkey.Shift, settings.Hotkey.Alt, settings.Hotkey.Win);
+        Configure(_ringChord, settings.Hotkey);
+        Configure(_taglistChord, settings.TaglistHotkey);
 
-        _tray?.SetHotkeyText(settings.Hotkey.ToString());
+        _tray?.SetHotkeyText(HotkeySummary());
         if (save) _store.Save(SettingsFile, settings);
         if (save) SaveHistory();
     }
 
+    private static void Configure(ChordTracker chord, HotkeySettings hotkey)
+    {
+        var key = Enum.TryParse<Key>(hotkey.Key, out var k) ? k : Key.None;
+        chord.Configure(key == Key.None ? 0 : KeyInterop.VirtualKeyFromKey(key),
+            hotkey.Ctrl, hotkey.Shift, hotkey.Alt, hotkey.Win);
+    }
+
+    private string HotkeySummary() => $"Ruleta {_settings.Hotkey} · Taglist {_settings.TaglistHotkey}";
+
     public void OpenSettings()
     {
-        Close(commit: false);
+        CloseRing(commit: false);
+        CloseTaglist(null);
         if (_settingsWindow != null)
         {
             _settingsWindow.Activate();
@@ -116,12 +135,18 @@ public sealed class AppController : IDisposable
 
     public string ReloadTaglist()
     {
-        _taglist.Configure(_settings.Taglist);
-        var count = _taglist.GetItems().Count;
-        return _taglist.LastError ?? $"Taglist cargado: {count} filas.";
+        _taglist.Configure(_settings.CurrentProfile());
+        var book = _taglist.GetBook();
+        return _taglist.LastError ?? $"Taglist cargado: {book.Sheets.Count} hojas, {book.RowCount} filas.";
     }
 
     public void ClearHistory() => _history.Clear();
+
+    private void SetOpacity(double opacity)
+    {
+        _settings.Opacity = Math.Clamp(opacity, 0.4, 1);
+        _store.Save(SettingsFile, _settings);
+    }
 
     private void SaveHistory()
     {
@@ -134,15 +159,26 @@ public sealed class AppController : IDisposable
     /// <summary>Se llama por CADA tecla del sistema. Tiene que ser rápido.</summary>
     private bool OnKey(int vk, bool isDown)
     {
-        if (Paused || _overlay?.IsSticky == true) return false;
+        // Con una ventana nuestra con foco (buscador), las teclas llegan normal a esa ventana.
+        if (Paused || _overlay?.IsSticky == true || _taglistWindow?.IsOpen == true) return false;
 
-        var result = _chord.OnKey(vk, isDown);
-        if (result.Signal != ChordSignal.None)
+        var ring = _ringChord.OnKey(vk, isDown);
+        if (_ringChord.IsActive || ring.Signal != ChordSignal.None)
         {
-            var signal = result.Signal;
-            _dispatcher.BeginInvoke(() => OnChordSignal(signal));
+            if (ring.Signal != ChordSignal.None)
+                _dispatcher.BeginInvoke(() => OnChordSignal(ring));
+            return ring.Swallow;
         }
-        return result.Swallow;
+
+        var taglist = _taglistChord.OnKey(vk, isDown);
+        if (taglist.Signal == ChordSignal.Opened)
+        {
+            // El taglist no usa "soltar para pegar": desde aquí las teclas van al buscador.
+            _taglistChord.Reset();
+            _dispatcher.BeginInvoke(OpenTaglist);
+            return true;
+        }
+        return taglist.Swallow;
     }
 
     /// <summary>Se llama por cada evento del mouse. Sólo actúa mientras la ruleta está en modo "mantener".</summary>
@@ -160,7 +196,7 @@ public sealed class AppController : IDisposable
                 _dispatcher.BeginInvoke(() => Do(s => s.Scroll(steps)));
                 return true;
             case Win32.WM_LBUTTONDOWN:
-                _dispatcher.BeginInvoke(() => Close(commit: true));
+                _dispatcher.BeginInvoke(() => CloseRing(commit: true));
                 return true;
             case Win32.WM_RBUTTONDOWN:
                 _dispatcher.BeginInvoke(() => Do(s => s.NextTemplate()));
@@ -175,19 +211,24 @@ public sealed class AppController : IDisposable
         }
     }
 
-    private void OnChordSignal(ChordSignal signal)
+    private void OnChordSignal(ChordResult result)
     {
-        switch (signal)
+        switch (result.Signal)
         {
-            case ChordSignal.Opened: Open(); break;
-            case ChordSignal.Released: OnReleased(); break;
-            case ChordSignal.Cancel: Close(commit: false); break;
-            case ChordSignal.Confirm: Close(commit: true); break;
+            case ChordSignal.Opened: OpenRing(); break;
+            case ChordSignal.Released: OnRingReleased(); break;
+            case ChordSignal.Cancel: CloseRing(commit: false); break;
+            case ChordSignal.Confirm: CloseRing(commit: true); break;
             case ChordSignal.NextSource: Do(s => s.NextSource()); break;
             case ChordSignal.PrevSource: Do(s => s.NextSource(-1)); break;
             case ChordSignal.Up: Do(s => s.Move(-1)); break;
             case ChordSignal.Down: Do(s => s.Move(1)); break;
             case ChordSignal.NextTemplate: Do(s => s.NextTemplate()); break;
+            case ChordSignal.PickSlice:
+                if (_session == null || result.Value >= _session.PageItems.Count) break;
+                _session.HoverSlice(result.Value);
+                CloseRing(commit: true);
+                break;
         }
     }
 
@@ -195,14 +236,13 @@ public sealed class AppController : IDisposable
     {
         switch (command)
         {
-            case OverlayCommand.Cancel: Close(commit: false); break;
-            case OverlayCommand.Confirm: Close(commit: true); break;
+            case OverlayCommand.Cancel: CloseRing(commit: false); break;
+            case OverlayCommand.Confirm: CloseRing(commit: true); break;
             case OverlayCommand.NextSource: Do(s => s.NextSource()); break;
             case OverlayCommand.PrevSource: Do(s => s.NextSource(-1)); break;
             case OverlayCommand.Move: Do(s => s.Move(value)); break;
             case OverlayCommand.Scroll: Do(s => s.Scroll(value)); break;
             case OverlayCommand.HoverSlice: Do(s => s.HoverSlice(value)); break;
-            case OverlayCommand.SelectRow: Do(s => s.Select(value)); break;
             case OverlayCommand.NextTemplate: Do(s => s.NextTemplate()); break;
             case OverlayCommand.FilterChanged: Do(s => s.SetFilter(_overlay!.FilterText)); break;
         }
@@ -216,10 +256,10 @@ public sealed class AppController : IDisposable
 
     // ───────────────────────── Ruleta ─────────────────────────
 
-    private void Open()
+    private void OpenRing()
     {
         if (_overlay == null) return;
-        if (_chord.UsesAltOrWin) Paster.SendDummyKey();
+        if (_ringChord.UsesAltOrWin) Paster.SendDummyKey();
 
         _targetWindow = Win32.GetForegroundWindow();
         _openedAt = DateTime.UtcNow;
@@ -228,66 +268,65 @@ public sealed class AppController : IDisposable
         {
             [SourceKind.History] = _history.Items.Select(PickItem.FromSnippet).ToList(),
             [SourceKind.Favorites] = _settings.Favorites.Select(PickItem.FromSnippet).ToList(),
-            [SourceKind.Taglist] = _taglist.GetItems(),
         };
         _session = new OverlaySession(sources, _settings.LastSource, _settings.SlicesPerPage,
             _settings.Templates, _settings.ActiveTemplateIndex);
 
-        _overlay.Open(Win32.CursorPosition());
+        _overlay.Open(Win32.CursorPosition(), _settings.Opacity);
         Render();
         _captureMouse = true;
     }
 
     /// <summary>Se soltó el atajo: pegar, o pasar a modo buscador si fue sólo un toque.</summary>
-    private void OnReleased()
+    private void OnRingReleased()
     {
         if (_session == null) return;
 
         var wasTap = !_session.Interacted && DateTime.UtcNow - _openedAt < TapThreshold;
         if (wasTap && _settings.TapToStick)
         {
-            _captureMouse = false;
-            _overlay!.EnterSticky();
-            Render();
+            EnterRingSearch();
             return;
         }
-        Close(commit: true);
+        CloseRing(commit: true);
     }
 
-    private void Close(bool commit)
+    private void EnterRingSearch()
+    {
+        _captureMouse = false;
+        _ringChord.Reset();
+        _overlay!.EnterSticky();
+        Render();
+    }
+
+    private void CloseRing(bool commit)
     {
         if (_session == null) return;
 
         var text = commit ? _session.Preview : null;
-        var target = _targetWindow;
 
         // Recordar la fuente y la plantilla para la próxima vez.
         _settings.LastSource = _session.Source;
         _settings.ActiveTemplateIndex = _session.TemplateIndex;
 
         _captureMouse = false;
-        _chord.Reset();
+        _ringChord.Reset();
         _session = null;
         _overlay?.Dismiss();
         _store.Save(SettingsFile, _settings);
-
-        if (!string.IsNullOrEmpty(text))
-        {
-            _ignoreClipboardUntil = DateTime.UtcNow.AddSeconds(1.5);
-            _ = Paster.PasteAsync(text, target, _settings.RestoreClipboardAfterPaste);
-        }
+        PasteIfAny(text);
     }
 
     private void Hover(Win32.POINT pt)
     {
-        if (_session == null || _overlay == null || _session.IsListMode) return;
+        if (_session == null || _overlay == null) return;
         var slice = _overlay.SliceAtScreen(pt, _session.SlicesPerPage);
         if (slice == _session.SelectedSlice) return;
         _session.HoverSlice(slice);
         Render();
     }
 
-    /// <summary>Aplica un cambio a la sesión abierta y redibuja.</summary>
+    /// <summary>Aplica un cambio a la ruleta abierta y redibuja.</summary>
     private void Do(Action<OverlaySession> change)
     {
         if (_session == null) return;
@@ -299,17 +338,65 @@ public sealed class AppController : IDisposable
     {
         if (_session == null || _overlay == null) return;
 
-        string? empty = _session.Source switch
-        {
-            SourceKind.History => "Copia algo con Ctrl+C y aparecerá aquí",
-            SourceKind.Favorites => "Agrega favoritos en la configuración",
-            SourceKind.Taglist when _taglist.LastError != null => "Error al leer el taglist:\n" + _taglist.LastError,
-            SourceKind.Taglist when string.IsNullOrWhiteSpace(_settings.Taglist.FilePath) =>
-                "Elige el Excel del taglist en la configuración (ícono de la bandeja)",
-            _ => _session.Filter.Length > 0 ? "Sin resultados" : null,
-        };
-        if (_session.Filter.Length > 0 && _session.Items.Count == 0) empty = "Sin resultados";
+        string? empty = _session.Filter.Length > 0
+            ? "Sin resultados"
+            : _session.Source == SourceKind.History
+                ? "Copia algo con Ctrl+C y aparecerá aquí"
+                : "Agrega favoritos en la configuración";
         _overlay.Render(_session, empty);
+    }
+
+    // ───────────────────────── Taglist ─────────────────────────
+
+    private void OpenTaglist()
+    {
+        if (_taglistWindow == null) return;
+        CloseRing(commit: false);
+        if (_taglistChord.UsesAltOrWin) Paster.SendDummyKey();
+
+        _targetWindow = Win32.GetForegroundWindow();
+        var profile = _settings.CurrentProfile();
+        var book = _taglist.GetBook();
+
+        string? empty = null;
+        if (!_taglist.HasFile) empty = "Elige el Excel del taglist en Configuración → Taglist (ícono junto al reloj).";
+        else if (!_taglist.HasSheets) empty = "El perfil no tiene hojas. En Configuración → Taglist presiona «Detectar hojas».";
+        else if (_taglist.LastError != null) empty = "Error al leer el taglist:\n" + _taglist.LastError;
+        else if (book.Sheets.Count == 0) empty = "Ninguna hoja del perfil se encontró en el archivo. ¿Cambió el nombre de las hojas?";
+
+        var session = new TaglistSession(book, _settings.LastSheet, _settings.Templates, _settings.ActiveTemplateIndex);
+        var fileName = string.IsNullOrWhiteSpace(profile.FilePath) ? "sin archivo" : Path.GetFileName(profile.FilePath);
+        _taglistWindow.Open(session, Win32.CursorPosition(), _settings.Opacity, $"Perfil «{profile.Name}» · {fileName}", empty);
+    }
+
+    private void CloseTaglist(string? text)
+    {
+        if (_taglistWindow?.Session is not { } session) return;
+
+        // Recordar hoja y plantilla: la próxima vez sigues donde estabas.
+        if (session.Book.Sheets.Count > 0) _settings.LastSheet = session.SheetName;
+        _settings.ActiveTemplateIndex = session.TemplateIndex;
+        _store.Save(SettingsFile, _settings);
+
+        _taglistWindow.Dismiss();
+        PasteIfAny(text);
+    }
+
+    /// <summary>Ctrl+Tab en el taglist: cambia a la ruleta (historial/favoritos) en modo buscador.</summary>
+    private void SwitchTaglistToRing()
+    {
+        var target = _targetWindow;
+        CloseTaglist(null);
+        OpenRing();
+        _targetWindow = target;
+        EnterRingSearch();
+    }
+
+    private void PasteIfAny(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        _ignoreClipboardUntil = DateTime.UtcNow.AddSeconds(1.5);
+        _ = Paster.PasteAsync(text, _targetWindow, _settings.RestoreClipboardAfterPaste);
     }
 
     private static bool IsModifierPhysicallyDown(int vk) => vk == ChordTracker.VkLWin
@@ -320,7 +407,8 @@ public sealed class AppController : IDisposable
 
     public void Dispose()
     {
-        Close(commit: false);
+        CloseRing(commit: false);
+        CloseTaglist(null);
         _keyboard?.Dispose();
         _mouse?.Dispose();
         _clipboard?.Dispose();

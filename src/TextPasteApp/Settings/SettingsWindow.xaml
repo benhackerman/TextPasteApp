@@ -29,13 +29,33 @@
             <TabItem Header="General">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="640" HorizontalAlignment="Left">
-                        <TextBlock Text="Atajo" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="Atajos" Style="{StaticResource SectionTitle}" />
                         <TextBlock Style="{StaticResource Help}"
-                                   Text="Haz clic en el cuadro y presiona la combinación. Mantenla presionada para abrir la ruleta y suéltala para pegar." />
-                        <TextBox x:Name="HotkeyBox" Width="260" HorizontalAlignment="Left" IsReadOnly="True"
-                                 FontWeight="SemiBold" Cursor="Hand"
-                                 PreviewKeyDown="HotkeyBox_PreviewKeyDown"
-                                 GotKeyboardFocus="HotkeyBox_GotFocus" LostKeyboardFocus="HotkeyBox_LostFocus" />
+                                   Text="Haz clic en un cuadro y presiona la combinación. Ruleta: mantén para abrir y suelta para pegar. Taglist: abre el buscador directo." />
+                        <StackPanel Orientation="Horizontal">
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Text="Ruleta (historial / favoritos)" Margin="0,0,0,4" />
+                                <TextBox x:Name="HotkeyBox" Tag="ring" Width="240" IsReadOnly="True" FontWeight="SemiBold" Cursor="Hand"
+                                         PreviewKeyDown="HotkeyBox_PreviewKeyDown"
+                                         GotKeyboardFocus="HotkeyBox_GotFocus" LostKeyboardFocus="HotkeyBox_LostFocus" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Taglist (buscador)" Margin="0,0,0,4" />
+                                <TextBox x:Name="TaglistHotkeyBox" Tag="taglist" Width="240" IsReadOnly="True" FontWeight="SemiBold" Cursor="Hand"
+                                         PreviewKeyDown="HotkeyBox_PreviewKeyDown"
+                                         GotKeyboardFocus="HotkeyBox_GotFocus" LostKeyboardFocus="HotkeyBox_LostFocus" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Text="Apariencia" Style="{StaticResource SectionTitle}" Margin="0,18,0,6" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Opacidad (ruleta y taglist):" VerticalAlignment="Center" Width="170" />
+                            <Slider x:Name="OpacitySlider" Width="220" Minimum="40" Maximum="100" TickFrequency="5"
+                                    IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="Opacity_Changed" />
+                            <TextBlock x:Name="OpacityText" Width="50" Margin="10,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Help}" Margin="0,4,0,0"
+                                   Text="También se ajusta con Ctrl + rueda con el taglist abierto." />
 
                         <TextBlock Text="Comportamiento" Style="{StaticResource SectionTitle}" Margin="0,18,0,6" />
                         <CheckBox x:Name="TapToStickBox"
@@ -87,9 +107,11 @@
             <!-- ═══════════ Taglist ═══════════ -->
             <TabItem Header="Taglist">
                 <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}"
+                               Text="Un perfil describe cómo es tu taglist: qué hojas usar, en qué fila están los encabezados y qué columna se pega por defecto. Configúralo una vez; en cada proyecto nuevo sólo cambias el archivo. El archivo se relee solo cuando cambia." />
                     <Grid DockPanel.Dock="Top">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="80" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
@@ -97,42 +119,55 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.ColumnSpan="3" Style="{StaticResource Help}"
-                                   Text="La ruleta busca por la columna de tag (la del P&amp;ID) y pega la columna de valor (n° de actuador / módulo), pasando por la plantilla activa. El archivo se relee solo cuando cambia." />
-
-                        <TextBlock Grid.Row="1" Text="Archivo:" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="FilePathBox" Margin="0,2" />
-                        <Button Grid.Row="1" Grid.Column="2" Content="Examinar…" Click="Browse_Click" Margin="6,2,0,2" />
-
-                        <TextBlock Grid.Row="2" Text="Hoja:" VerticalAlignment="Center" />
-                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
-                            <ComboBox x:Name="SheetBox" Width="200" SelectionChanged="Sheet_Changed" />
-                            <TextBlock Text="Fila de encabezados:" VerticalAlignment="Center" Margin="16,0,6,0" />
-                            <TextBox x:Name="HeaderRowBox" Width="50" />
+                        <TextBlock Text="Perfil:" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" x:Name="ProfileBox" Margin="0,2" SelectionChanged="Profile_Changed" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,2,0,2">
+                            <Button Content="Nuevo" Click="ProfileNew_Click" MinWidth="0" />
+                            <Button Content="Duplicar" Click="ProfileDuplicate_Click" MinWidth="0" />
+                            <Button Content="Eliminar" Click="ProfileDelete_Click" MinWidth="0" />
+                            <Button Content="Exportar…" Click="ProfileExport_Click" MinWidth="0" />
+                            <Button Content="Importar…" Click="ProfileImport_Click" MinWidth="0" Margin="0" />
                         </StackPanel>
-                        <Button Grid.Row="2" Grid.Column="2" Content="Leer columnas" Click="ReadColumns_Click" Margin="6,2,0,2" />
 
-                        <TextBlock Grid.Row="3" Text="Columna del tag:" VerticalAlignment="Center" />
-                        <ComboBox Grid.Row="3" Grid.Column="1" x:Name="TagColumnBox" IsEditable="True" Width="260"
-                                  HorizontalAlignment="Left" Margin="0,2" />
+                        <TextBlock Grid.Row="1" Text="Nombre:" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="ProfileNameBox" Margin="0,2" LostFocus="ProfileName_LostFocus" />
 
-                        <TextBlock Grid.Row="4" Text="Columna del valor:" VerticalAlignment="Center" />
-                        <ComboBox Grid.Row="4" Grid.Column="1" x:Name="ValueColumnBox" IsEditable="True" Width="260"
-                                  HorizontalAlignment="Left" Margin="0,2" />
-
-                        <TextBlock Grid.Row="5" Text="Columna descripción:" VerticalAlignment="Center" />
-                        <ComboBox Grid.Row="5" Grid.Column="1" x:Name="DescColumnBox" IsEditable="True" Width="260"
-                                  HorizontalAlignment="Left" Margin="0,2" />
-                        <Button Grid.Row="5" Grid.Column="2" Content="Vista previa" Click="Preview_Click" Margin="6,2,0,2"
-                                FontWeight="SemiBold" />
+                        <TextBlock Grid.Row="2" Text="Archivo:" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="FilePathBox" Margin="0,2" />
+                        <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Margin="6,2,0,2">
+                            <Button Content="Examinar…" Click="Browse_Click" MinWidth="0" />
+                            <Button Content="Detectar hojas" Click="Detect_Click" FontWeight="SemiBold" MinWidth="0" Margin="0" />
+                        </StackPanel>
                     </Grid>
-                    <DataGrid x:Name="PreviewGrid" Margin="0,10,0,0" IsReadOnly="True" AutoGenerateColumns="True"
-                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" />
+
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}" Margin="0,10,0,4"
+                               Text="Columnas: escribe el encabezado tal como está en el Excel o la letra (A, B…). «Columnas visibles» separadas por coma; vacío = todas. El orden de las filas define Ctrl+1…9." />
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="▲ Subir" Click="SheetUp_Click" />
+                        <Button Content="▼ Bajar" Click="SheetDown_Click" />
+                        <Button Content="Vista previa" Click="Preview_Click" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <DataGrid x:Name="SheetsGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="26">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="Usar" Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                <DataGridTextColumn Header="Hoja del Excel" Binding="{Binding SheetName}" IsReadOnly="True" Width="150" />
+                                <DataGridTextColumn Header="Corto" Binding="{Binding ShortName}" Width="60" />
+                                <DataGridTextColumn Header="Fila encab." Binding="{Binding HeaderRow}" Width="70" />
+                                <DataGridTextColumn Header="Columna a pegar" Binding="{Binding PasteColumn}" Width="120" />
+                                <DataGridTextColumn Header="Columnas visibles" Binding="{Binding VisibleColumns}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <DataGrid Grid.Row="1" x:Name="PreviewGrid" Margin="0,8,0,0" IsReadOnly="True" AutoGenerateColumns="True"
+                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" />
+                    </Grid>
                 </DockPanel>
             </TabItem>
 
@@ -143,7 +178,9 @@
                         Envuelven el texto antes de pegarlo. Se cambian con clic derecho (o T / F2) en la ruleta.
                         <LineBreak />
                         Marcadores: <Bold>{valor}</Bold> valor a pegar · <Bold>{tag}</Bold> · <Bold>{desc}</Bold> ·
-                        <Bold>{NombreColumna}</Bold> cualquier columna del Excel · <Bold>{valor:0000}</Bold> rellena con ceros.
+                        <Bold>{NombreColumna}</Bold> cualquier columna visible del Excel · <Bold>{valor:0000}</Bold> rellena con ceros.
+                        <LineBreak />
+                        En el taglist, <Bold>{valor}</Bold> es la columna elegida con la rueda (por defecto, la «columna a pegar» de la hoja).
                     </TextBlock>
                     <Border DockPanel.Dock="Bottom" Background="#FFF3F4F6" CornerRadius="6" Padding="10" Margin="0,8,0,0">
                         <StackPanel>

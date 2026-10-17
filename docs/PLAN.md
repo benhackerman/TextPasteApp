@@ -39,7 +39,19 @@ aparece un cuadro de búsqueda, Enter pega y la app de destino recupera el foco 
 | DPI | Manifest PerMonitorV2 + posición en píxeles físicos | Ruleta nítida y centrada en monitores con distinto escalado |
 | Distribución | `.exe` único autocontenido desde GitHub Actions | Se puede probar en el PC del trabajo sin instalar nada |
 
-## Estado (v0.1 — esta rama)
+## Modo taglist (v0.2)
+
+Decidido con el usuario:
+- **Dos atajos**: ruleta (Ctrl+Shift+Espacio) y taglist (Ctrl+Shift+T, abre directo el buscador).
+- **Rueda = columna** de la fila; ↑↓ = fila. Cada fila parte en la «columna a pegar» de su hoja.
+- **Hoja inicial = la última usada**. Tab recorre las hojas (incluida «Todas»), Ctrl+1…9 salta directo.
+- La búsqueda mira **todas las columnas visibles** de la fila. Orden: celda idéntica → empieza igual → contiene.
+- **Perfiles de taglist** (las "plantillas de taglist"): hojas, fila de encabezados, columna a pegar y columnas visibles.
+  «Detectar hojas» propone todo (encabezado = primera fila con 2+ textos; columna a pegar = la que empieza con N°/Nº/NUM/ID).
+- **Opacidad** ajustable (40–100 %) para ruleta y taglist; en el taglist también con Ctrl+rueda.
+- Mejoras a la ruleta: teclas 1–8 eligen y pegan un sector directo (con su número dibujado).
+
+## Estado (v0.1)
 
 - [x] Reestructura completa (Core + App + tests + CI)
 - [x] Historial del portapapeles (sin duplicados, límite, se guarda)
@@ -60,7 +72,8 @@ Cosas que no se pueden verificar sin Windows real; anota lo que falle y lo vemos
 3. Rueda con la ruleta abierta → cambia de página y **no** hace scroll en la app de atrás.
 4. Tab → Favoritos → Taglist. Clic derecho → cambia la plantilla (chip abajo).
 5. Toque rápido → queda abierta con buscador; escribir parte de un tag; Enter → pega.
-6. Configurar el taglist real: elegir archivo, hoja, fila de encabezados, columnas → *Vista previa*.
+6. Configurar el taglist real: Examinar → «Detectar hojas» → revisar la columna a pegar de cada hoja → *Vista previa*.
+6b. Ctrl+Shift+T en el SCADA: escribir parte de un tag, ↑↓, rueda, Tab entre hojas, Enter → pega en el campo.
 7. Probar con el Excel abierto al mismo tiempo.
 8. Probar en el SCADA real (algunos programas antiguos leen el portapapeles lento: si pega lo anterior,
    desactivar "devolver al portapapeles lo que había antes").
@@ -72,6 +85,8 @@ Cosas que no se pueden verificar sin Windows real; anota lo que falle y lo vemos
 
 1. **Ajustes tras la primera prueba real** (velocidad del toque, tamaño de la ruleta, textos).
 2. **Recientes del taglist**: los últimos tags usados primero en la lista.
+2b. **Pegar varias columnas seguidas** con Tab entre ellas (N° → Tab → descripción) para llenar formularios de una pasada.
+2c. Historial: fijar elementos, mostrar de qué programa se copió, y vista previa del texto completo al apuntar.
 3. **Filtro por columna/área** del taglist (p. ej. sólo área 310) para listas gigantes.
 4. **Varias plantillas por fuente** (una por defecto para taglist y otra para historial).
 5. **Secuencias**: pegar varios campos seguidos con Tab entre ellos (tag → Tab → valor → Tab → descripción).

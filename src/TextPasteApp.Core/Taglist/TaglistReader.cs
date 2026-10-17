@@ -1,15 +1,16 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using ExcelDataReader;
 using TextPasteApp.Core.Models;
 
 namespace TextPasteApp.Core.Taglist;
 
 /// <summary>
-/// Lee el taglist desde Excel (.xlsx, .xlsm, .xls) o CSV.
+/// Lee el taglist desde Excel (.xlsx, .xlsm, .xls) o CSV, con todas sus hojas.
 /// Abre el archivo en modo compartido, así funciona aunque esté abierto en Excel.
 /// </summary>
-public static class TaglistReader
+public static partial class TaglistReader
 {
     static TaglistReader()
     {
@@ -23,62 +24,114 @@ public static class TaglistReader
         using var stream = OpenShared(path);
         using var reader = CreateReader(path, stream);
         var names = new List<string>();
-        do { names.Add(reader.Name ?? $"Hoja{names.Count + 1}"); } while (reader.NextResult());
+        do { names.Add(SheetName(reader, names.Count)); } while (reader.NextResult());
         return names;
     }
 
-    /// <summary>Encabezados de la hoja (para llenar los combos de columnas en la configuración).</summary>
+    /// <summary>Encabezados de una hoja (para llenar combos en la configuración).</summary>
     public static IReadOnlyList<string> ReadHeaders(string path, string sheetName, int headerRow)
     {
         using var stream = OpenShared(path);
         using var reader = CreateReader(path, stream);
-        if (!MoveToSheet(reader, sheetName)) return Array.Empty<string>();
-        return ReadHeaderRow(reader, headerRow);
+        var index = 0;
+        do
+        {
+            if (string.IsNullOrWhiteSpace(sheetName) || SameName(SheetName(reader, index), sheetName))
+                return ReadHeaderRow(reader, headerRow);
+            index++;
+        } while (reader.NextResult());
+        return Array.Empty<string>();
     }
 
-    public static IReadOnlyList<TagRow> Read(TaglistSettings settings)
+    /// <summary>
+    /// Revisa el archivo y propone un perfil por hoja: adivina la fila de encabezados
+    /// (la primera con 2 o más textos) y la columna a pegar (la que empieza con N°, Nº, NUM, ID…).
+    /// </summary>
+    public static List<SheetProfile> DetectSheets(string path)
     {
-        if (string.IsNullOrWhiteSpace(settings.FilePath))
-            return Array.Empty<TagRow>();
-        if (!File.Exists(settings.FilePath))
-            throw new FileNotFoundException("No se encontró el taglist", settings.FilePath);
+        using var stream = OpenShared(path);
+        using var reader = CreateReader(path, stream);
+        var result = new List<SheetProfile>();
+        var index = 0;
+        do
+        {
+            var name = SheetName(reader, index++);
+            var (headerRow, headers) = GuessHeader(reader);
+            if (headers.Count == 0) continue; // hoja vacía
 
-        using var stream = OpenShared(settings.FilePath);
-        using var reader = CreateReader(settings.FilePath, stream);
-        if (!MoveToSheet(reader, settings.SheetName))
-            throw new InvalidDataException($"La hoja \"{settings.SheetName}\" no existe en el archivo.");
+            var paste = headers.FindIndex(h => NumberHeader().IsMatch(h.Trim()));
+            result.Add(new SheetProfile
+            {
+                SheetName = name,
+                ShortName = GuessShortName(name),
+                HeaderRow = headerRow,
+                PasteColumn = headers[Math.Max(0, paste)] is { Length: > 0 } h ? h : "A",
+            });
+        } while (reader.NextResult());
+        return result;
+    }
 
-        var headers = ReadHeaderRow(reader, settings.HeaderRow);
-        var tagCol = ResolveColumn(headers, settings.TagColumn);
-        var valueCol = ResolveColumn(headers, settings.ValueColumn);
-        var descCol = ResolveColumn(headers, settings.DescriptionColumn);
+    /// <summary>Lee todas las hojas habilitadas del perfil.</summary>
+    public static TaglistBook ReadBook(TaglistProfile profile)
+    {
+        if (string.IsNullOrWhiteSpace(profile.FilePath))
+            return TaglistBook.Empty;
+        if (!File.Exists(profile.FilePath))
+            throw new FileNotFoundException("No se encontró el taglist", profile.FilePath);
 
-        if (tagCol < 0) throw new InvalidDataException($"No se encontró la columna de tag \"{settings.TagColumn}\".");
-        if (valueCol < 0) throw new InvalidDataException($"No se encontró la columna de valor \"{settings.ValueColumn}\".");
+        var wanted = profile.Sheets.Where(s => s.Enabled).ToList();
+        var sheets = new List<TaglistSheet>();
 
-        var rows = new List<TagRow>();
+        using var stream = OpenShared(profile.FilePath);
+        using var reader = CreateReader(profile.FilePath, stream);
+        var index = 0;
+        do
+        {
+            var name = SheetName(reader, index++);
+            var config = wanted.FirstOrDefault(s => SameName(s.SheetName, name));
+            if (config != null) sheets.Add(ReadSheet(reader, name, config));
+        } while (reader.NextResult());
+
+        // Mismo orden que en el perfil (así Ctrl+1…9 siempre apunta a la misma hoja).
+        var ordered = wanted
+            .Select(w => sheets.FirstOrDefault(s => SameName(s.Name, w.SheetName)))
+            .Where(s => s != null)
+            .Cast<TaglistSheet>()
+            .ToList();
+        return new TaglistBook(ordered);
+    }
+
+    private static TaglistSheet ReadSheet(IExcelDataReader reader, string name, SheetProfile config)
+    {
+        var headers = ReadHeaderRow(reader, config.HeaderRow);
+
+        // Columnas a mostrar: las pedidas, o todas las que tengan encabezado.
+        var columns = new List<int>();
+        if (!string.IsNullOrWhiteSpace(config.VisibleColumns))
+        {
+            foreach (var spec in config.VisibleColumns.Split(',', ';'))
+            {
+                var i = ResolveColumn(headers, spec);
+                if (i >= 0 && !columns.Contains(i)) columns.Add(i);
+            }
+        }
+        if (columns.Count == 0)
+            columns = Enumerable.Range(0, headers.Count).Where(i => headers[i].Length > 0).ToList();
+
+        var pasteIndex = ResolveColumn(headers, config.PasteColumn);
+        if (pasteIndex >= 0 && !columns.Contains(pasteIndex)) columns.Insert(0, pasteIndex);
+        if (columns.Count == 0) columns.Add(Math.Max(0, pasteIndex));
+
+        var names = columns.Select(i => i < headers.Count && headers[i].Length > 0 ? headers[i] : ColumnLetter(i)).ToList();
+        var sheet = new TaglistSheet(name, config.ShortName, names, Math.Max(0, columns.IndexOf(pasteIndex)));
+
         while (reader.Read())
         {
-            var cells = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            for (var i = 0; i < reader.FieldCount; i++)
-            {
-                var key = i < headers.Count && headers[i].Length > 0 ? headers[i] : ColumnLetter(i);
-                cells.TryAdd(key, CellText(reader.GetValue(i)));
-            }
-
-            var tag = Cell(reader, tagCol);
-            var value = Cell(reader, valueCol);
-            if (tag.Length == 0 && value.Length == 0) continue; // filas vacías o separadores
-
-            rows.Add(new TagRow
-            {
-                Tag = tag,
-                Value = value,
-                Description = descCol >= 0 ? Cell(reader, descCol) : "",
-                Cells = cells,
-            });
+            var values = columns.Select(i => i < reader.FieldCount ? CellText(reader.GetValue(i)) : "").ToArray();
+            if (values.All(v => v.Length == 0)) continue; // filas vacías o separadores
+            sheet.Add(values);
         }
-        return rows;
+        return sheet;
     }
 
     /// <summary>
@@ -120,8 +173,35 @@ public static class TaglistReader
         _ => value.ToString()?.Trim() ?? "",
     };
 
-    private static string Cell(IExcelDataReader reader, int index) =>
-        index >= 0 && index < reader.FieldCount ? CellText(reader.GetValue(index)) : "";
+    /// <summary>"Actuadores" → "ACT"; "Entradas digitales" → "ED".</summary>
+    public static string GuessShortName(string sheetName)
+    {
+        var words = sheetName.Split(new[] { ' ', '_', '-' }, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0) return "";
+        if (words.Length == 1) return words[0].Length <= 4 ? words[0].ToUpperInvariant() : words[0][..3].ToUpperInvariant();
+        return string.Concat(words.Take(3).Select(w => char.ToUpperInvariant(w[0])));
+    }
+
+    // Encabezados de número: "N°", "Nº", "N# ", "NRO", "NUM…", "N.", "NO.", "ID".
+    [GeneratedRegex(@"^(N\s*[°º#]|NRO\b|NUM|N\.|NO\.|ID\b)", RegexOptions.IgnoreCase)]
+    private static partial Regex NumberHeader();
+
+    private static (int Row, List<string> Headers) GuessHeader(IExcelDataReader reader)
+    {
+        for (var row = 1; row <= 15 && reader.Read(); row++)
+        {
+            var cells = new List<string>();
+            for (var i = 0; i < reader.FieldCount; i++) cells.Add(CellText(reader.GetValue(i)));
+            var filled = cells.Where(c => c.Length > 0).ToList();
+            var texts = filled.Count(c => !double.TryParse(c, NumberStyles.Any, CultureInfo.InvariantCulture, out _));
+            if (filled.Count >= 2 && texts * 2 >= filled.Count)
+            {
+                while (cells.Count > 0 && cells[^1].Length == 0) cells.RemoveAt(cells.Count - 1);
+                return (row, cells);
+            }
+        }
+        return (1, new List<string>());
+    }
 
     private static List<string> ReadHeaderRow(IExcelDataReader reader, int headerRow)
     {
@@ -134,15 +214,10 @@ public static class TaglistReader
         return headers;
     }
 
-    private static bool MoveToSheet(IExcelDataReader reader, string? sheetName)
-    {
-        if (string.IsNullOrWhiteSpace(sheetName)) return true;
-        do
-        {
-            if (string.Equals(reader.Name, sheetName, StringComparison.OrdinalIgnoreCase)) return true;
-        } while (reader.NextResult());
-        return false;
-    }
+    private static string SheetName(IExcelDataReader reader, int index) =>
+        string.IsNullOrWhiteSpace(reader.Name) ? $"Hoja{index + 1}" : reader.Name;
+
+    private static bool SameName(string a, string b) => string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private static FileStream OpenShared(string path) =>
         new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);

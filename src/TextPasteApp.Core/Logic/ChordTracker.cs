@@ -13,10 +13,11 @@ public enum ChordSignal
     Up,          // flecha arriba / RePág
     Down,        // flecha abajo / AvPág
     NextTemplate,// T
+    PickSlice,   // 1–9: elegir y pegar el sector N (Value = 0..8)
 }
 
 /// <summary>Resultado de procesar una tecla: si hay que tragársela (que la app de destino no la vea) y qué señal emitir.</summary>
-public readonly record struct ChordResult(bool Swallow, ChordSignal Signal)
+public readonly record struct ChordResult(bool Swallow, ChordSignal Signal, int Value = 0)
 {
     public static readonly ChordResult Pass = new(false, ChordSignal.None);
 }
@@ -107,6 +108,8 @@ public sealed class ChordTracker
             VkUp or VkPrior => new ChordResult(true, ChordSignal.Up),
             VkDown or VkNext => new ChordResult(true, ChordSignal.Down),
             VkT => new ChordResult(true, ChordSignal.NextTemplate),
+            >= 0x31 and <= 0x39 => new ChordResult(true, ChordSignal.PickSlice, vk - 0x31),   // 1–9
+            >= 0x61 and <= 0x69 => new ChordResult(true, ChordSignal.PickSlice, vk - 0x61),   // teclado numérico
             _ => new ChordResult(true, ChordSignal.None), // incluye la repetición del gatillo
         };
     }

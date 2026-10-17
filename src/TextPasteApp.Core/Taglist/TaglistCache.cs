@@ -4,37 +4,37 @@ namespace TextPasteApp.Core.Taglist;
 
 /// <summary>
 /// Mantiene el taglist en memoria y lo vuelve a leer sólo si el archivo cambió
-/// (así se puede editar el Excel y la ruleta se actualiza sola).
+/// (así puedes editar el Excel y el buscador se actualiza solo).
 /// </summary>
 public sealed class TaglistCache
 {
-    private TaglistSettings _settings = new();
+    private TaglistProfile _profile = new();
     private DateTime _loadedWriteTime;
-    private IReadOnlyList<PickItem> _items = Array.Empty<PickItem>();
+    private TaglistBook _book = TaglistBook.Empty;
 
     public string? LastError { get; private set; }
-    public int Count => _items.Count;
+    public bool HasFile => !string.IsNullOrWhiteSpace(_profile.FilePath);
+    public bool HasSheets => _profile.Sheets.Any(s => s.Enabled);
 
-    public void Configure(TaglistSettings settings)
+    public void Configure(TaglistProfile profile)
     {
-        _settings = settings;
+        _profile = profile;
         _loadedWriteTime = default;
-        _items = Array.Empty<PickItem>();
+        _book = TaglistBook.Empty;
         LastError = null;
     }
 
-    /// <summary>Devuelve las filas, recargando si el archivo cambió. Nunca lanza excepciones: el error queda en LastError.</summary>
-    public IReadOnlyList<PickItem> GetItems()
+    /// <summary>Devuelve el libro, recargando si el archivo cambió. Nunca lanza excepciones: el error queda en LastError.</summary>
+    public TaglistBook GetBook()
     {
-        var path = _settings.FilePath;
-        if (string.IsNullOrWhiteSpace(path)) return _items = Array.Empty<PickItem>();
+        if (!HasFile) return _book = TaglistBook.Empty;
 
         try
         {
-            var writeTime = File.GetLastWriteTimeUtc(path);
-            if (writeTime != _loadedWriteTime || _items.Count == 0 && LastError == null)
+            var writeTime = File.GetLastWriteTimeUtc(_profile.FilePath);
+            if (writeTime != _loadedWriteTime)
             {
-                _items = TaglistReader.Read(_settings).Select(PickItem.FromTagRow).ToList();
+                _book = TaglistReader.ReadBook(_profile);
                 _loadedWriteTime = writeTime;
                 LastError = null;
             }
@@ -43,7 +43,8 @@ public sealed class TaglistCache
                                    or ExcelDataReader.Exceptions.ExcelReaderException)
         {
             LastError = ex.Message;
+            _loadedWriteTime = default; // reintentar la próxima vez
         }
-        return _items;
+        return _book;
     }
 }

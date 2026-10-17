@@ -6,7 +6,7 @@ Al soltar el atajo se pega lo elegido en la app donde estabas (SCADA, Excel, edi
 Pensado para parametrizar módulos de control desde un **taglist en Excel** sin andar buscando
 a mano el número de actuador que corresponde a cada tag del P&ID.
 
-Hay **dos atajos**:
+Hay **tres atajos**: ruleta, taglist y funciones.
 
 ### Ruleta — `Ctrl + Shift + Espacio` (historial y favoritos)
 
@@ -38,6 +38,7 @@ Hay **dos atajos**:
 | **Tab / Shift+Tab** | Hoja siguiente / anterior («Todas» busca en el libro completo) |
 | **Ctrl + 1…9** | Hoja directa (Ctrl + 0 = Todas) |
 | **F4** | Cambiar de proyecto (otro taglist) |
+| **Ctrl + F** | Usar la fila en una **función** de código (rellena sus parámetros) |
 | **F2 / Ctrl+T** | Cambiar plantilla |
 | **Ctrl + Rueda** | Opacidad de la ventana |
 | **Ctrl + Tab** | Pasar a la ruleta (historial/favoritos) |
@@ -56,6 +57,30 @@ Cada **proyecto** es un archivo de taglist + un perfil. Al presionar el atajo se
 **Perfiles de taglist:** describen el formato del Excel (hojas, fila de encabezados, columna a pegar,
 columnas visibles, secuencia, columnas ocultas como `Text_1, Text_2`). Se configuran una vez con «Detectar hojas»
 y los comparten todos los proyectos con ese formato. Se pueden exportar/importar.
+
+### Funciones — `Ctrl + Shift + F` (código AWL guardado)
+
+Guarda bloques de código para pegarlos de nuevo y búscalos por nombre, categoría, descripción o contenido.
+
+- **Guardar:** copia el código y en el buscador presiona **Ctrl+N** (o bandeja → «Guardar lo copiado como función…»).
+  También desde Configuración → Funciones (crear, editar, importar archivos `.awl`, exportar).
+- **Parámetros `{{nombre}}`:** se piden al pegar y se recuerda el último valor. Si se llaman como una columna del taglist
+  (`{{No}}`, `{{Code}}`, `{{Text_0}}`, `{{valor}}`…) se rellenan solos con la última fila elegida.
+- **Desde el taglist:** busca el actuador, **Ctrl+F** → elige la función → Enter: pega el bloque AWL de ese actuador.
+
+```
+// {{Code}} - {{Text_0}}
+      CALL  FB   100 , DB{{No}}
+       Cmd :=M{{No}}.0
+```
+
+| En el buscador de funciones | |
+|---|---|
+| Escribir | Filtra al instante |
+| ↑↓ / rueda | Elegir función |
+| Tab | Ir a los parámetros (verde = tomado del taglist) |
+| Enter | Pegar |
+| Ctrl+N / Ctrl+E | Nueva desde lo copiado / editar |
 
 ### Estadísticas
 

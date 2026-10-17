@@ -24,7 +24,7 @@
             </DockPanel>
         </Border>
 
-        <TabControl Margin="12" Padding="14">
+        <TabControl x:Name="Tabs" Margin="12" Padding="14">
             <!-- ═══════════ General ═══════════ -->
             <TabItem Header="General">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -35,13 +35,19 @@
                         <StackPanel Orientation="Horizontal">
                             <StackPanel Margin="0,0,16,0">
                                 <TextBlock Text="Ruleta (historial / favoritos)" Margin="0,0,0,4" />
-                                <TextBox x:Name="HotkeyBox" Tag="ring" Width="240" IsReadOnly="True" FontWeight="SemiBold" Cursor="Hand"
+                                <TextBox x:Name="HotkeyBox" Tag="ring" Width="190" IsReadOnly="True" FontWeight="SemiBold" Cursor="Hand"
+                                         PreviewKeyDown="HotkeyBox_PreviewKeyDown"
+                                         GotKeyboardFocus="HotkeyBox_GotFocus" LostKeyboardFocus="HotkeyBox_LostFocus" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Text="Taglist (buscador)" Margin="0,0,0,4" />
+                                <TextBox x:Name="TaglistHotkeyBox" Tag="taglist" Width="190" IsReadOnly="True" FontWeight="SemiBold" Cursor="Hand"
                                          PreviewKeyDown="HotkeyBox_PreviewKeyDown"
                                          GotKeyboardFocus="HotkeyBox_GotFocus" LostKeyboardFocus="HotkeyBox_LostFocus" />
                             </StackPanel>
                             <StackPanel>
-                                <TextBlock Text="Taglist (buscador)" Margin="0,0,0,4" />
-                                <TextBox x:Name="TaglistHotkeyBox" Tag="taglist" Width="240" IsReadOnly="True" FontWeight="SemiBold" Cursor="Hand"
+                                <TextBlock Text="Funciones (código)" Margin="0,0,0,4" />
+                                <TextBox x:Name="FunctionsHotkeyBox" Tag="functions" Width="190" IsReadOnly="True" FontWeight="SemiBold" Cursor="Hand"
                                          PreviewKeyDown="HotkeyBox_PreviewKeyDown"
                                          GotKeyboardFocus="HotkeyBox_GotFocus" LostKeyboardFocus="HotkeyBox_LostFocus" />
                             </StackPanel>
@@ -88,6 +94,11 @@
                             <TextBlock Text="segundos" Margin="6,0,24,0" VerticalAlignment="Center" />
                             <TextBlock Text="Por pegado de la ruleta:" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBox x:Name="SecondsRingBox" Width="60" />
+                            <TextBlock Text="segundos" Margin="6,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="Por función pegada:" VerticalAlignment="Center" Width="170" />
+                            <TextBox x:Name="SecondsFunctionBox" Width="60" />
                             <TextBlock Text="segundos" Margin="6,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                         <Button Content="Ver estadísticas…" Click="OpenStats_Click" HorizontalAlignment="Left" Margin="0,8,0,0" />
@@ -233,6 +244,39 @@
                         <DataGrid Grid.Row="1" x:Name="PreviewGrid" Margin="0,8,0,0" IsReadOnly="True" AutoGenerateColumns="True"
                                   HeadersVisibility="Column" GridLinesVisibility="Horizontal" />
                     </Grid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ═══════════ Funciones ═══════════ -->
+            <TabItem Header="Funciones">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}">
+                        Código AWL (u otro) guardado para pegarlo de nuevo. Búscalo con su atajo; Enter lo pega.
+                        Parámetros <Bold>{{nombre}}</Bold>: se piden al pegar. Si se llaman como una columna del taglist
+                        (<Bold>{{No}}</Bold>, <Bold>{{Code}}</Bold>, <Bold>{{Text_0}}</Bold>…) se rellenan solos con la última fila elegida
+                        (en el taglist, <Bold>Ctrl+F</Bold> abre las funciones con esa fila). Los cambios de esta pestaña se guardan al instante.
+                    </TextBlock>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Nueva" Click="FunctionNew_Click" FontWeight="SemiBold" />
+                        <Button Content="Desde lo copiado" Click="FunctionFromClipboard_Click" />
+                        <Button Content="Editar" Click="FunctionEdit_Click" />
+                        <Button Content="Duplicar" Click="FunctionDuplicate_Click" />
+                        <Button Content="Eliminar" Click="FunctionDelete_Click" />
+                        <Button Content="Importar…" Click="FunctionImport_Click" ToolTip="Archivos .awl / .txt / .scl (uno por función) o un .json exportado" />
+                        <Button Content="Exportar…" Click="FunctionExport_Click" />
+                    </StackPanel>
+                    <TextBox DockPanel.Dock="Bottom" x:Name="FunctionPreview" Height="150" Margin="0,8,0,0" IsReadOnly="True"
+                             FontFamily="Consolas" FontSize="12" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                             VerticalContentAlignment="Top" Background="#FFF6F7F9" />
+                    <DataGrid x:Name="FunctionsGrid" IsReadOnly="True" AutoGenerateColumns="False" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal" RowHeight="24" SelectionMode="Single"
+                              SelectionChanged="Functions_SelectionChanged" MouseDoubleClick="FunctionEdit_Click">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Nombre" Binding="{Binding Name}" Width="200" />
+                            <DataGridTextColumn Header="Categoría" Binding="{Binding Category}" Width="130" />
+                            <DataGridTextColumn Header="Descripción" Binding="{Binding Description}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
                 </DockPanel>
             </TabItem>
 

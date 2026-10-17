@@ -21,7 +21,7 @@ public sealed class UsageData
 
 public sealed class ItemUsage
 {
-    /// <summary>"Taglist", "Historial" o "Favoritos".</summary>
+    /// <summary>"Taglist", "Historial", "Favoritos" o "Funciones".</summary>
     public string Source { get; set; } = "";
     public string Project { get; set; } = "";
     public string Sheet { get; set; } = "";
@@ -43,5 +43,6 @@ public sealed class DayUsage
     public int Pastes { get; set; }
     public int TaglistPastes { get; set; }
     public int RingPastes { get; set; }
+    public int FunctionPastes { get; set; }
     public int SecondsSaved { get; set; }
 }

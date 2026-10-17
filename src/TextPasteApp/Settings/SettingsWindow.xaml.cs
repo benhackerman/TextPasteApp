@@ -29,6 +29,7 @@ public partial class SettingsWindow : Window
     private readonly ObservableCollection<TextTemplate> _templates;
     private HotkeySettings _hotkey;
     private HotkeySettings _taglistHotkey;
+    private HotkeySettings _functionsHotkey;
     private bool _wasPaused;
 
     // Perfiles de taglist
@@ -48,6 +49,7 @@ public partial class SettingsWindow : Window
         _history = history;
         _hotkey = settings.Hotkey;
         _taglistHotkey = settings.TaglistHotkey;
+        _functionsHotkey = settings.FunctionsHotkey;
         _favorites = new ObservableCollection<Snippet>(settings.Favorites);
         _templates = new ObservableCollection<TextTemplate>(settings.Templates);
         _profiles = settings.TaglistProfiles;
@@ -60,7 +62,15 @@ public partial class SettingsWindow : Window
         LoadProfiles(_profile.Name);
         ProjectsGrid.ItemsSource = _projects;
         RefreshProfileChoices();
+        RefreshFunctions();
         UpdateTemplatePreview();
+    }
+
+    /// <summary>Abre la ventana en una pestaña por su título.</summary>
+    public void SelectTab(string header)
+    {
+        foreach (TabItem tab in Tabs.Items)
+            if (string.Equals(tab.Header as string, header, StringComparison.OrdinalIgnoreCase)) tab.IsSelected = true;
     }
 
     // ───────────────────────── General ─────────────────────────
@@ -69,6 +79,7 @@ public partial class SettingsWindow : Window
     {
         HotkeyBox.Text = _hotkey.ToString();
         TaglistHotkeyBox.Text = _taglistHotkey.ToString();
+        FunctionsHotkeyBox.Text = _functionsHotkey.ToString();
         UpdateHeader();
         OpacitySlider.Value = Math.Round(_settings.Opacity * 100);
         TapToStickBox.IsChecked = _settings.TapToStick;
@@ -81,12 +92,13 @@ public partial class SettingsWindow : Window
         MaxLengthBox.Text = _settings.MaxHistoryTextLength.ToString();
         SecondsTaglistBox.Text = _settings.SecondsSavedTaglist.ToString();
         SecondsRingBox.Text = _settings.SecondsSavedRing.ToString();
+        SecondsFunctionBox.Text = _settings.SecondsSavedFunction.ToString();
         AutoUpdateBox.IsChecked = _settings.AutoUpdate;
         RefreshHistoryList();
     }
 
     private void UpdateHeader() =>
-        HeaderHint.Text = $"Ruleta: mantén {_hotkey} y suelta para pegar · Taglist: {_taglistHotkey}";
+        HeaderHint.Text = $"Ruleta: mantén {_hotkey} y suelta para pegar · Taglist: {_taglistHotkey} · Funciones: {_functionsHotkey}";
 
     private void Opacity_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -156,6 +168,118 @@ public partial class SettingsWindow : Window
         }
     }
 
+    // ───────────────────────── Funciones ─────────────────────────
+    // Se editan directo sobre la biblioteca del controlador y se guardan al instante.
+
+    private List<CodeFunction> Library => _controller.FunctionLibrary.Functions;
+
+    private void RefreshFunctions(CodeFunction? select = null)
+    {
+        FunctionsGrid.ItemsSource = Library.OrderBy(f => f.Category, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        if (select != null) FunctionsGrid.SelectedItem = select;
+        Functions_SelectionChanged(this, null!);
+    }
+
+    private void Functions_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        FunctionPreview.Text = (FunctionsGrid.SelectedItem as CodeFunction)?.Code ?? "";
+
+    private void AddFunction(CodeFunction function)
+    {
+        if (!_controller.ShowFunctionEditor(function)) return;
+        Library.Add(function);
+        _controller.SaveFunctions();
+        RefreshFunctions(function);
+    }
+
+    private void FunctionNew_Click(object sender, RoutedEventArgs e) => AddFunction(new CodeFunction());
+
+    private void FunctionFromClipboard_Click(object sender, RoutedEventArgs e) =>
+        AddFunction(new CodeFunction { Code = System.Windows.Clipboard.ContainsText() ? System.Windows.Clipboard.GetText() : "" });
+
+    private void FunctionEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if (FunctionsGrid.SelectedItem is not CodeFunction function) return;
+        if (_controller.EditFunction(function)) RefreshFunctions(function);
+    }
+
+    private void FunctionDuplicate_Click(object sender, RoutedEventArgs e)
+    {
+        if (FunctionsGrid.SelectedItem is not CodeFunction f) return;
+        AddFunction(new CodeFunction { Name = f.Name + " (copia)", Category = f.Category, Description = f.Description, Code = f.Code });
+    }
+
+    private void FunctionDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (FunctionsGrid.SelectedItem is not CodeFunction f) return;
+        if (MessageBox.Show(this, $"¿Eliminar la función «{f.Name}»?", "TextPaste", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+        Library.Remove(f);
+        _controller.SaveFunctions();
+        RefreshFunctions();
+    }
+
+    /// <summary>Importa un .json exportado, o archivos de código (.awl, .scl, .txt…): uno por función.</summary>
+    private void FunctionImport_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Importar funciones",
+            Multiselect = true,
+            Filter = "Código o funciones (*.awl;*.scl;*.txt;*.json)|*.awl;*.scl;*.txt;*.json|Todos los archivos|*.*",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        var added = 0;
+        try
+        {
+            foreach (var path in dialog.FileNames)
+            {
+                if (path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var imported = JsonStore.ImportFile<FunctionLibrary>(path).Functions;
+                    Library.AddRange(imported);
+                    added += imported.Count;
+                }
+                else
+                {
+                    Library.Add(new CodeFunction
+                    {
+                        Name = Path.GetFileNameWithoutExtension(path),
+                        Category = "Importadas",
+                        Code = File.ReadAllText(path),
+                    });
+                    added++;
+                }
+            }
+            _controller.SaveFunctions();
+            RefreshFunctions();
+            StatusText.Text = $"{added} funciones importadas.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            StatusText.Text = "No se pudo importar: " + ex.Message;
+        }
+    }
+
+    private void FunctionExport_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Exportar funciones",
+            FileName = "TextPaste-funciones.json",
+            Filter = "Funciones de TextPaste (*.json)|*.json",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            JsonStore.ExportFile(dialog.FileName, new FunctionLibrary { Functions = Library });
+            StatusText.Text = $"{Library.Count} funciones exportadas.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusText.Text = "No se pudo exportar: " + ex.Message;
+        }
+    }
+
     // ───────────────────────── Proyectos ─────────────────────────
 
     private void RefreshProfileChoices() => ProjectProfileColumn.ItemsSource = _profiles.Select(p => p.Name).ToList();
@@ -216,7 +340,14 @@ public partial class SettingsWindow : Window
         if (ProjectsGrid.SelectedItem is TaglistProject project) _projects.Remove(project);
     }
 
-    private bool IsTaglistBox(object sender) => (sender as FrameworkElement)?.Tag as string == "taglist";
+    private static string BoxKind(object sender) => (sender as FrameworkElement)?.Tag as string ?? "ring";
+
+    private HotkeySettings HotkeyOf(object sender) => BoxKind(sender) switch
+    {
+        "taglist" => _taglistHotkey,
+        "functions" => _functionsHotkey,
+        _ => _hotkey,
+    };
 
     private void HotkeyBox_GotFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
@@ -229,7 +360,7 @@ public partial class SettingsWindow : Window
     private void HotkeyBox_LostFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
         _controller.Paused = _wasPaused;
-        ((TextBox)sender).Text = (IsTaglistBox(sender) ? _taglistHotkey : _hotkey).ToString();
+        ((TextBox)sender).Text = HotkeyOf(sender).ToString();
     }
 
     private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -255,11 +386,17 @@ public partial class SettingsWindow : Window
             Win = mods.HasFlag(ModifierKeys.Windows),
             Key = key.ToString(),
         };
-        if (IsTaglistBox(sender)) _taglistHotkey = hotkey; else _hotkey = hotkey;
+        switch (BoxKind(sender))
+        {
+            case "taglist": _taglistHotkey = hotkey; break;
+            case "functions": _functionsHotkey = hotkey; break;
+            default: _hotkey = hotkey; break;
+        }
         ((TextBox)sender).Text = hotkey.ToString();
         UpdateHeader();
-        StatusText.Text = _hotkey.ToString() == _taglistHotkey.ToString()
-            ? "Los dos atajos son iguales: elige combinaciones distintas."
+        var all = new[] { _hotkey.ToString(), _taglistHotkey.ToString(), _functionsHotkey.ToString() };
+        StatusText.Text = all.Distinct().Count() < all.Length
+            ? "Hay atajos repetidos: elige combinaciones distintas."
             : "Atajo cambiado. Presiona Guardar para aplicarlo.";
     }
 
@@ -566,6 +703,8 @@ public partial class SettingsWindow : Window
 
         _settings.Hotkey = _hotkey;
         _settings.TaglistHotkey = _taglistHotkey;
+        _settings.FunctionsHotkey = _functionsHotkey;
+        _settings.SecondsSavedFunction = Math.Clamp(ParseInt(SecondsFunctionBox.Text, 60), 0, 3600);
         _settings.Opacity = OpacitySlider.Value / 100.0;
         _settings.TapToStick = TapToStickBox.IsChecked == true;
         _settings.RestoreClipboardAfterPaste = RestoreClipboardBox.IsChecked == true;

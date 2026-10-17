@@ -10,6 +10,7 @@ namespace TextPasteApp.Core.Logic;
 public sealed class UsageTracker
 {
     public const string SourceTaglist = "Taglist";
+    public const string SourceFunctions = "Funciones";
     public const int MaxItems = 5000;
 
     private readonly Func<DateTime> _now;
@@ -51,6 +52,18 @@ public sealed class UsageTracker
         {
             d.Pastes++;
             d.RingPastes++;
+            d.SecondsSaved += Math.Max(0, seconds);
+        });
+    }
+
+    /// <summary>Pegado de una función de código guardada.</summary>
+    public void RecordFunction(string name, string code, int seconds)
+    {
+        Touch($"F|{name}", SourceFunctions, "", "", "", name, code);
+        AddToDay(d =>
+        {
+            d.Pastes++;
+            d.FunctionPastes++;
             d.SecondsSaved += Math.Max(0, seconds);
         });
     }
@@ -136,6 +149,7 @@ public sealed class UsageTracker
             total.Pastes += usage.Pastes;
             total.TaglistPastes += usage.TaglistPastes;
             total.RingPastes += usage.RingPastes;
+            total.FunctionPastes += usage.FunctionPastes;
             total.SecondsSaved += usage.SecondsSaved;
         }
         return total;
@@ -149,6 +163,7 @@ public sealed class UsageTracker
             total.Pastes += usage.Pastes;
             total.TaglistPastes += usage.TaglistPastes;
             total.RingPastes += usage.RingPastes;
+            total.FunctionPastes += usage.FunctionPastes;
             total.SecondsSaved += usage.SecondsSaved;
         }
         return total;

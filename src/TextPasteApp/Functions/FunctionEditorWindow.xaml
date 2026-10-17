@@ -1,0 +1,35 @@
+<Window x:Class="TextPasteApp.Functions.FunctionEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TextPaste — Función" Width="720" Height="600" MinWidth="520" MinHeight="420"
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="13" Topmost="True">
+    <DockPanel Margin="14">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Guardar" IsDefault="True" Click="Save_Click" FontWeight="SemiBold" />
+            <Button Content="Cancelar" IsCancel="True" Margin="0" />
+        </StackPanel>
+        <Grid DockPanel.Dock="Top">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock Text="Nombre:" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" x:Name="NameBox" Margin="0,2" />
+            <TextBlock Grid.Row="1" Text="Categoría:" VerticalAlignment="Center" />
+            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="CategoryBox" IsEditable="True" Margin="0,2" />
+            <TextBlock Grid.Row="2" Text="Descripción:" VerticalAlignment="Center" />
+            <TextBox Grid.Row="2" Grid.Column="1" x:Name="DescriptionBox" Margin="0,2" />
+        </Grid>
+        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}" Margin="0,10,0,4"
+                   Text="Código. Parámetros: {{nombre}}. Si se llaman como una columna del taglist ({{No}}, {{Code}}, {{Text_0}}…) se rellenan solos con la fila elegida (en el taglist: Ctrl+F)." />
+        <TextBlock DockPanel.Dock="Bottom" x:Name="ParamsText" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0" TextWrapping="Wrap" />
+        <TextBox x:Name="CodeBox" AcceptsReturn="True" AcceptsTab="True" FontFamily="Consolas" FontSize="13"
+                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap"
+                 VerticalContentAlignment="Top" TextChanged="Code_Changed" />
+    </DockPanel>
+</Window>

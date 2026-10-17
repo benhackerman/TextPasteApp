@@ -39,6 +39,15 @@ aparece un cuadro de búsqueda, Enter pega y la app de destino recupera el foco 
 | DPI | Manifest PerMonitorV2 + posición en píxeles físicos | Ruleta nítida y centrada en monitores con distinto escalado |
 | Distribución | `.exe` único autocontenido desde GitHub Actions | Se puede probar en el PC del trabajo sin instalar nada |
 
+## v0.4 — funciones (código AWL)
+
+- Biblioteca de funciones (functions.json): nombre, categoría, descripción, código. Se incluye en el respaldo.
+- Buscador compacto con atajo propio (Ctrl+Shift+F), vista previa y parámetros `{{nombre}}`
+  (llaves dobles porque AWL usa `$` en sus textos).
+- Parámetros rellenados desde la última fila del taglist (mismo nombre de columna) o el último valor usado.
+- Ctrl+F en el taglist abre las funciones con esa fila; Ctrl+N guarda lo copiado como función.
+- Estadísticas: pegados de funciones y su tiempo ahorrado (60 s por defecto).
+
 ## v0.3 — para usarla siempre
 
 - **Secuencias** (Shift+Enter): pegar varias columnas con Tab entre ellas; configurable por hoja en el perfil.

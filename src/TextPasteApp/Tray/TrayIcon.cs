@@ -31,6 +31,8 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add(_updateItem);
         menu.Items.Add("Configuración…", null, (_, _) => _controller.OpenSettings());
         menu.Items.Add("Estadísticas…", null, (_, _) => _controller.OpenStats());
+        menu.Items.Add("Funciones…", null, (_, _) => _controller.OpenSettings("Funciones"));
+        menu.Items.Add("Guardar lo copiado como función…", null, (_, _) => _controller.NewFunctionFromClipboard());
         menu.Items.Add(_projectsItem);
         menu.Items.Add("Recargar taglist", null, (_, _) => ShowBalloon(_controller.ReloadTaglist()));
         menu.Items.Add("Borrar historial (menos lo fijado)", null, (_, _) => _controller.ClearHistory());

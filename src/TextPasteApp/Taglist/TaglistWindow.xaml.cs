@@ -18,7 +18,7 @@ namespace TextPasteApp.Taglist;
 /// que se filtra mientras escribes. Maneja sus propias teclas sobre un <see cref="TaglistSession"/> y al final
 /// le pide al controlador que pegue (o que cancele).
 ///   ↑↓ fila · rueda columna · → autocompletar · Tab hoja · Ctrl+1…9 hoja · F2 plantilla · F4 proyecto
-///   Ctrl+D hecho · Ctrl+rueda opacidad · Enter pega · Shift+Enter secuencia · Esc
+///   Ctrl+D hecho · Ctrl+F usar fila en una función · Ctrl+rueda opacidad · Enter pega · Shift+Enter secuencia · Esc
 /// </summary>
 public partial class TaglistWindow : Window
 {
@@ -46,6 +46,9 @@ public partial class TaglistWindow : Window
 
     /// <summary>Ctrl+D: marcar / desmarcar la fila como hecha.</summary>
     public event Action<TagRow>? ToggleDoneRequested;
+
+    /// <summary>Ctrl+F: usar la fila elegida para rellenar una función de código.</summary>
+    public event Action<TagRow>? UseInFunctionRequested;
 
     /// <summary>F4: pasar al siguiente proyecto (otro taglist).</summary>
     public event Action? NextProjectRequested;
@@ -150,6 +153,9 @@ public partial class TaglistWindow : Window
                 Render();
                 return;
             case Key.F4: NextProjectRequested?.Invoke(); return;
+            case Key.F when ctrl:
+                if (_session.Selected is { } forFunction) UseInFunctionRequested?.Invoke(forFunction);
+                return;
             case Key.Down: Do(s => s.MoveRow(1)); return;
             case Key.Up: Do(s => s.MoveRow(-1)); return;
             case Key.PageDown: Do(s => s.MoveRow(VisibleRows)); return;

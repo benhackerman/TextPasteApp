@@ -9,6 +9,7 @@ using TextPasteApp.Core.Logic;
 using TextPasteApp.Core.Models;
 using TextPasteApp.Core.Storage;
 using TextPasteApp.Core.Taglist;
+using TextPasteApp.Functions;
 using TextPasteApp.Native;
 using TextPasteApp.Overlay;
 using TextPasteApp.Settings;
@@ -33,6 +34,7 @@ public sealed class AppController : IDisposable
     private const string SettingsFile = "settings.json";
     private const string HistoryFile = "history.json";
     private const string UsageFile = "usage.json";
+    private const string FunctionsFile = "functions.json";
     private static readonly TimeSpan TapThreshold = TimeSpan.FromMilliseconds(350);
 
     private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
@@ -40,6 +42,7 @@ public sealed class AppController : IDisposable
     private readonly Dictionary<string, TaglistCache> _taglists = new();
     private readonly ChordTracker _ringChord = new(0, false, false, false, false);
     private readonly ChordTracker _taglistChord = new(0, false, false, false, false);
+    private readonly ChordTracker _functionsChord = new(0, false, false, false, false);
     private readonly DispatcherTimer _usageSaveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
 
     private AppSettings _settings = new();
@@ -53,6 +56,11 @@ public sealed class AppController : IDisposable
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
     private StatsWindow? _statsWindow;
+    private FunctionsWindow? _functionsWindow;
+    private FunctionLibrary _functions = new();
+
+    /// <summary>Última fila elegida en el taglist: sus columnas rellenan los parámetros de las funciones.</summary>
+    private TagRow? _lastTaglistRow;
 
     private OverlaySession? _session;
     private TaglistProject? _taglistProject;
@@ -82,6 +90,7 @@ public sealed class AppController : IDisposable
         _history = new ClipboardHistory(_settings.HistoryLimit, savedHistory);
         _history.Changed += SaveHistory;
 
+        _functions = _store.Load<FunctionLibrary>(FunctionsFile);
         _usage = new UsageTracker(_store.Load<UsageData>(UsageFile));
         _usage.Changed += () => { _usageSaveTimer.Stop(); _usageSaveTimer.Start(); };
         _usageSaveTimer.Tick += (_, _) => SaveUsage();
@@ -101,12 +110,26 @@ public sealed class AppController : IDisposable
             if (_taglistProject != null) _usage.ToggleDone(_taglistProject.Name, row.Key);
         };
         _taglistWindow.NextProjectRequested += NextTaglistProject;
+        _taglistWindow.UseInFunctionRequested += row =>
+        {
+            var target = _targetWindow;
+            CloseTaglist(null, false);
+            _lastTaglistRow = row;
+            OpenFunctions(target);
+        };
+
+        _functionsWindow = new FunctionsWindow();
+        _functionsWindow.PasteRequested += (f, code, values) => CloseFunctions(f, code, values);
+        _functionsWindow.Cancelled += () => CloseFunctions(null, null, null);
+        _functionsWindow.NewFromClipboardRequested += () => { CloseFunctions(null, null, null); NewFunctionFromClipboard(); };
+        _functionsWindow.EditRequested += f => { CloseFunctions(null, null, null); EditFunction(f); };
 
         _clipboard = new ClipboardWatcher();
         _clipboard.TextCopied += OnTextCopied;
 
         _ringChord.IsKeyDown = IsModifierPhysicallyDown;
         _taglistChord.IsKeyDown = IsModifierPhysicallyDown;
+        _functionsChord.IsKeyDown = IsModifierPhysicallyDown;
         _keyboard = new KeyboardHook { Handler = OnKey };
         _mouse = new MouseHook { Handler = OnMouse };
 
@@ -132,6 +155,7 @@ public sealed class AppController : IDisposable
 
         Configure(_ringChord, settings.Hotkey);
         Configure(_taglistChord, settings.TaglistHotkey);
+        Configure(_functionsChord, settings.FunctionsHotkey);
 
         _tray?.SetHotkeyText(HotkeySummary());
         _tray?.RefreshProjects();
@@ -146,21 +170,20 @@ public sealed class AppController : IDisposable
             hotkey.Ctrl, hotkey.Shift, hotkey.Alt, hotkey.Win);
     }
 
-    private string HotkeySummary() => $"Ruleta {_settings.Hotkey} · Taglist {_settings.TaglistHotkey}";
+    private string HotkeySummary() => $"Ruleta {_settings.Hotkey} · Taglist {_settings.TaglistHotkey} · Funciones {_settings.FunctionsHotkey}";
 
-    public void OpenSettings()
+    public void OpenSettings(string? tab = null)
     {
         CloseRing(commit: false);
         CloseTaglist(null, false);
-        if (_settingsWindow != null)
+        CloseFunctions(null, null, null);
+        if (_settingsWindow == null)
         {
-            _settingsWindow.Activate();
-            return;
+            _settingsWindow = new SettingsWindow(this, _settings.Clone(), _history);
+            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+            _settingsWindow.Show();
         }
-
-        _settingsWindow = new SettingsWindow(this, _settings.Clone(), _history);
-        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
-        _settingsWindow.Show();
+        if (tab != null) _settingsWindow.SelectTab(tab);
         _settingsWindow.Activate();
     }
 
@@ -173,7 +196,7 @@ public sealed class AppController : IDisposable
         }
         var project = CurrentProject();
         var book = project == null ? TaglistBook.Empty : CacheFor(project).GetBook();
-        _statsWindow = new StatsWindow(_usage, project?.Name, book, _settings.SecondsSavedTaglist, _settings.SecondsSavedRing);
+        _statsWindow = new StatsWindow(_usage, project?.Name, book, _settings.SecondsSavedTaglist, _settings.SecondsSavedRing, _settings.SecondsSavedFunction);
         _statsWindow.Closed += (_, _) => _statsWindow = null;
         _statsWindow.Show();
         _statsWindow.Activate();
@@ -209,6 +232,7 @@ public sealed class AppController : IDisposable
         public AppSettings Settings { get; set; } = new();
         public List<Snippet> History { get; set; } = new();
         public UsageData Usage { get; set; } = new();
+        public FunctionLibrary Functions { get; set; } = new();
     }
 
     public void ExportBackup(string path) => JsonStore.ExportFile(path, new Backup
@@ -216,6 +240,7 @@ public sealed class AppController : IDisposable
         Settings = _settings,
         History = _history.Items.ToList(),
         Usage = _usage.Data,
+        Functions = _functions,
     });
 
     /// <summary>Reemplaza todo por lo del respaldo. Lanza JsonException/IOException si el archivo no sirve.</summary>
@@ -227,6 +252,8 @@ public sealed class AppController : IDisposable
         _history = new ClipboardHistory(backup.Settings.HistoryLimit, backup.History);
         _history.Changed += SaveHistory;
         _usage = new UsageTracker(backup.Usage);
+        _functions = backup.Functions;
+        SaveFunctions();
         _usage.Changed += () => { _usageSaveTimer.Stop(); _usageSaveTimer.Start(); };
 
         backup.Settings.EnsureProjects();
@@ -290,7 +317,7 @@ public sealed class AppController : IDisposable
     private bool OnKey(int vk, bool isDown)
     {
         // Con una ventana nuestra con foco (buscador), las teclas llegan normal a esa ventana.
-        if (Paused || _overlay?.IsSticky == true || _taglistWindow?.IsOpen == true) return false;
+        if (Paused || _overlay?.IsSticky == true || _taglistWindow?.IsOpen == true || _functionsWindow?.IsOpen == true) return false;
 
         var ring = _ringChord.OnKey(vk, isDown);
         if (_ringChord.IsActive || ring.Signal != ChordSignal.None)
@@ -308,7 +335,15 @@ public sealed class AppController : IDisposable
             _dispatcher.BeginInvoke(OpenTaglist);
             return true;
         }
-        return taglist.Swallow;
+
+        var functions = _functionsChord.OnKey(vk, isDown);
+        if (functions.Signal == ChordSignal.Opened)
+        {
+            _functionsChord.Reset();
+            _dispatcher.BeginInvoke(() => OpenFunctions(null));
+            return true;
+        }
+        return taglist.Swallow || functions.Swallow;
     }
 
     /// <summary>Se llama por cada evento del mouse. Sólo actúa mientras la ruleta está en modo "mantener".</summary>
@@ -601,6 +636,7 @@ public sealed class AppController : IDisposable
         if (_taglistProject != null) _settings.ActiveProject = _taglistProject.Name;
         _store.Save(SettingsFile, _settings);
 
+        if (values is { Count: > 0 } && session.Selected is { } pastedRow) _lastTaglistRow = pastedRow;
         if (values is { Count: > 0 } && session.Selected is { } row && _taglistProject != null)
             _usage.RecordTaglist(_taglistProject.Name, row, string.Join(" ⇥ ", values),
                 isSequence ? values.Count : 1, _settings.SecondsSavedTaglist);
@@ -617,6 +653,64 @@ public sealed class AppController : IDisposable
         OpenRing();
         _targetWindow = target;
         EnterRingSearch();
+    }
+
+    // ───────────────────────── Funciones (código guardado) ─────────────────────────
+
+    public FunctionLibrary FunctionLibrary => _functions;
+
+    public void SaveFunctions() => _store.Save(FunctionsFile, _functions);
+
+    /// <summary>Abre el buscador de funciones. target = ventana donde pegar (null = la que tiene el foco ahora).</summary>
+    private void OpenFunctions(IntPtr? target)
+    {
+        if (_functionsWindow == null) return;
+        CloseRing(commit: false);
+        if (_functionsChord.UsesAltOrWin) Paster.SendDummyKey();
+        _targetWindow = target ?? Win32.GetForegroundWindow();
+        var session = new FunctionSession(_functions.Functions, _functions.LastValues, _lastTaglistRow);
+        _functionsWindow.Open(session, Win32.CursorPosition(), _settings.Opacity);
+    }
+
+    private void CloseFunctions(CodeFunction? function, string? code, IReadOnlyDictionary<string, string>? values)
+    {
+        if (_functionsWindow?.IsOpen != true) return;
+        _functionsWindow.Dismiss();
+        if (function == null || string.IsNullOrEmpty(code)) return;
+
+        if (values != null)
+        {
+            foreach (var (k, v) in values) _functions.LastValues[k] = v;
+            SaveFunctions();
+        }
+        _usage.RecordFunction(function.Name, code, _settings.SecondsSavedFunction);
+        Paste(new[] { code }, sequence: false);
+    }
+
+    /// <summary>Guarda lo que hay en el portapapeles como función nueva (pide nombre y categoría).</summary>
+    public void NewFunctionFromClipboard()
+    {
+        var code = ClipboardHelper.TryGetText() ?? "";
+        var function = new CodeFunction { Code = code };
+        if (ShowFunctionEditor(function))
+        {
+            _functions.Functions.Add(function);
+            SaveFunctions();
+            _tray?.ShowBalloon($"Función «{function.Name}» guardada. Búscala con {_settings.FunctionsHotkey}.");
+        }
+    }
+
+    public bool EditFunction(CodeFunction function)
+    {
+        if (!ShowFunctionEditor(function)) return false;
+        SaveFunctions();
+        return true;
+    }
+
+    public bool ShowFunctionEditor(CodeFunction function)
+    {
+        var editor = new FunctionEditorWindow(function, _functions.Functions.Select(f => f.Category));
+        return editor.ShowDialog() == true;
     }
 
     private void Paste(IReadOnlyList<string> values, bool sequence)
@@ -637,6 +731,7 @@ public sealed class AppController : IDisposable
     {
         CloseRing(commit: false);
         CloseTaglist(null, false);
+        CloseFunctions(null, null, null);
         SaveUsage();
         _keyboard?.Dispose();
         _mouse?.Dispose();

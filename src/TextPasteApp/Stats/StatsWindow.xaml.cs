@@ -24,7 +24,7 @@ public partial class StatsWindow : Window
     private readonly string? _project;
     private readonly TaglistBook _book;
 
-    public StatsWindow(UsageTracker usage, string? project, TaglistBook book, int secondsTaglist, int secondsRing)
+    public StatsWindow(UsageTracker usage, string? project, TaglistBook book, int secondsTaglist, int secondsRing, int secondsFunction)
     {
         InitializeComponent();
         _usage = usage;
@@ -32,7 +32,7 @@ public partial class StatsWindow : Window
         _book = book;
 
         SinceText.Text = $"Desde el {usage.Data.Since:dd-MM-yyyy}";
-        FootText.Text = $"El tiempo ahorrado es una estimación: {secondsTaglist} s por valor pegado del taglist y {secondsRing} s por pegado de la ruleta. Ajústalo en Configuración → General.";
+        FootText.Text = $"El tiempo ahorrado es una estimación: {secondsTaglist} s por valor del taglist, {secondsRing} s por pegado de la ruleta y {secondsFunction} s por función. Ajústalo en Configuración → General.";
         Refresh();
     }
 
@@ -45,7 +45,7 @@ public partial class StatsWindow : Window
         Cards.Children.Clear();
         Cards.Children.Add(Card("Hoy", $"{today.Pastes}", $"pegados · {UsageTracker.FormatDuration(today.SecondsSaved)} ahorrados"));
         Cards.Children.Add(Card("Últimos 7 días", $"{week.Pastes}", $"pegados · {UsageTracker.FormatDuration(week.SecondsSaved)} ahorrados"));
-        Cards.Children.Add(Card("Total", $"{all.Pastes}", $"{all.TaglistPastes} del taglist · {all.RingPastes} de la ruleta"));
+        Cards.Children.Add(Card("Total", $"{all.Pastes}", $"{all.TaglistPastes} taglist · {all.RingPastes} ruleta · {all.FunctionPastes} funciones"));
         Cards.Children.Add(Card("Tiempo ahorrado", UsageTracker.FormatDuration(all.SecondsSaved), "en total (estimado)"));
 
         TopGrid.ItemsSource = _usage.Top(30);
@@ -97,7 +97,7 @@ public partial class StatsWindow : Window
         for (var i = 0; i < series.Count; i++)
         {
             var (date, usage) = series[i];
-            var tip = $"{date:dddd dd-MM}: {usage.Pastes} pegados ({usage.TaglistPastes} taglist, {usage.RingPastes} ruleta) · {UsageTracker.FormatDuration(usage.SecondsSaved)} ahorrados";
+            var tip = $"{date:dddd dd-MM}: {usage.Pastes} pegados ({usage.TaglistPastes} taglist, {usage.RingPastes} ruleta, {usage.FunctionPastes} funciones) · {UsageTracker.FormatDuration(usage.SecondsSaved)} ahorrados";
 
             // Zona de hover más grande que la barra.
             var hit = new Rectangle { Width = slot, Height = height, Fill = Brushes.Transparent, ToolTip = tip };

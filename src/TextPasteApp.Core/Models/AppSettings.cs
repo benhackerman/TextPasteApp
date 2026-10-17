@@ -11,6 +11,12 @@ public sealed class AppSettings
     /// <summary>Atajo que abre directo el taglist con el buscador.</summary>
     public HotkeySettings TaglistHotkey { get; set; } = new() { Ctrl = true, Shift = true, Key = "T" };
 
+    /// <summary>Atajo que abre el buscador de funciones (código AWL guardado).</summary>
+    public HotkeySettings FunctionsHotkey { get; set; } = new() { Ctrl = true, Shift = true, Key = "F" };
+
+    /// <summary>Segundos que estimas ahorrar por cada función pegada.</summary>
+    public int SecondsSavedFunction { get; set; } = 60;
+
     /// <summary>Opacidad de la ruleta y del taglist (0.4 a 1).</summary>
     public double Opacity { get; set; } = 0.95;
 

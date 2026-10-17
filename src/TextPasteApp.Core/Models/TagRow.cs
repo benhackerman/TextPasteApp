@@ -10,10 +10,13 @@ public sealed class TaglistSheet
     /// <summary>Índice (dentro de Columns) de la columna que se pega por defecto.</summary>
     public int PasteColumn { get; }
 
-    /// <summary>Columna que se muestra como título de la fila (la que contiene "TAG"; si no hay, la primera que no es la de pegar).</summary>
+    /// <summary>Columna que se muestra como título de la fila (TAG / Code / Código; si no hay, la primera que no es la de pegar).</summary>
     public int TitleColumn { get; }
 
-    /// <summary>Columna de descripción (encabezado con "DESCRIP", "TEXTO" o "NOMBRE"), o -1.</summary>
+    /// <summary>True si la columna de título se reconoció por su nombre (y no es sólo "la primera que no es la de pegar").</summary>
+    public bool HasNamedTitle { get; }
+
+    /// <summary>Columna de descripción (DESCRIPCIÓN / Text_0 / Texto / Nombre / Name), o -1.</summary>
     public int DescriptionColumn { get; }
 
     public List<TagRow> Rows { get; } = new();
@@ -24,10 +27,24 @@ public sealed class TaglistSheet
         Short = string.IsNullOrWhiteSpace(shortName) ? name : shortName;
         Columns = columns;
         PasteColumn = Math.Clamp(pasteColumn, 0, Math.Max(0, columns.Count - 1));
-        TitleColumn = FindColumn(columns, "TAG");
-        if (TitleColumn < 0 || TitleColumn == PasteColumn && columns.Count > 1)
+        TitleColumn = FindColumn(columns, "TAG", "CODE", "CÓDIGO", "CODIGO");
+        HasNamedTitle = TitleColumn >= 0 && TitleColumn != PasteColumn;
+        if (!HasNamedTitle)
             TitleColumn = Enumerable.Range(0, columns.Count).FirstOrDefault(i => i != PasteColumn);
-        DescriptionColumn = FindColumn(columns, "DESCRIP", "TEXTO", "NOMBRE");
+        DescriptionColumn = FindColumn(columns, "DESCRIP", "TEXT", "NOMBRE", "NAME");
+        if (DescriptionColumn == PasteColumn || DescriptionColumn == TitleColumn) DescriptionColumn = -1;
+    }
+
+    /// <summary>
+    /// True si la fila es un "espacio reservado": en muchos taglists las filas vienen numeradas de antemano
+    /// (No, IO) pero sin tag ni texto. Esas filas no se muestran.
+    /// </summary>
+    public bool IsPlaceholder(IReadOnlyList<string> values)
+    {
+        string At(int i) => i >= 0 && i < values.Count ? values[i] : "";
+        if (HasNamedTitle || DescriptionColumn >= 0)
+            return (!HasNamedTitle || At(TitleColumn).Length == 0) && At(DescriptionColumn).Length == 0;
+        return Enumerable.Range(0, values.Count).All(i => i == PasteColumn || values[i].Length == 0);
     }
 
     /// <summary>Agrega una fila (los valores en el mismo orden que Columns).</summary>
@@ -62,6 +79,10 @@ public sealed class TagRow
     }
 
     public string this[int column] => column >= 0 && column < Values.Count ? Values[column] : "";
+
+    /// <summary>Columnas con contenido (más la de pegar aunque esté vacía). Las vacías no se muestran ni se recorren con la rueda.</summary>
+    public IReadOnlyList<int> UsefulColumns =>
+        Enumerable.Range(0, Sheet.Columns.Count).Where(i => i == Sheet.PasteColumn || this[i].Length > 0).ToList();
 
     public string Title => this[Sheet.TitleColumn];
     public string Description => this[Sheet.DescriptionColumn];

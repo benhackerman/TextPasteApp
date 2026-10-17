@@ -59,14 +59,21 @@ public static partial class TaglistReader
             var (headerRow, headers) = GuessHeader(reader);
             if (headers.Count == 0) continue; // hoja vacía
 
-            var paste = headers.FindIndex(h => NumberHeader().IsMatch(h.Trim()));
-            result.Add(new SheetProfile
+            var numberColumn = headers.FindIndex(h => NumberHeader().IsMatch(h.Trim()));
+            var paste = Math.Max(0, numberColumn);
+            var profile = new SheetProfile
             {
                 SheetName = name,
                 ShortName = GuessShortName(name),
                 HeaderRow = headerRow,
-                PasteColumn = headers[Math.Max(0, paste)] is { Length: > 0 } h ? h : "A",
-            });
+                PasteColumn = headers[paste].Length > 0 ? headers[paste] : "A",
+            };
+
+            // Quedan desmarcadas las hojas sin datos (sólo encabezados o filas reservadas)
+            // y las que no tienen columna de número (suelen ser de configuración, no de módulos).
+            var rows = ReadRows(reader, name, profile, headers).Rows.Count;
+            profile.Enabled = rows > 0 && numberColumn >= 0;
+            result.Add(profile);
         } while (reader.NextResult());
         return result;
     }
@@ -89,7 +96,7 @@ public static partial class TaglistReader
         {
             var name = SheetName(reader, index++);
             var config = wanted.FirstOrDefault(s => SameName(s.SheetName, name));
-            if (config != null) sheets.Add(ReadSheet(reader, name, config));
+            if (config != null) sheets.Add(ReadRows(reader, name, config, ReadHeaderRow(reader, config.HeaderRow)));
         } while (reader.NextResult());
 
         // Mismo orden que en el perfil (así Ctrl+1…9 siempre apunta a la misma hoja).
@@ -101,10 +108,9 @@ public static partial class TaglistReader
         return new TaglistBook(ordered);
     }
 
-    private static TaglistSheet ReadSheet(IExcelDataReader reader, string name, SheetProfile config)
+    /// <summary>Lee las filas de datos (el lector ya pasó la fila de encabezados).</summary>
+    private static TaglistSheet ReadRows(IExcelDataReader reader, string name, SheetProfile config, List<string> headers)
     {
-        var headers = ReadHeaderRow(reader, config.HeaderRow);
-
         // Columnas a mostrar: las pedidas, o todas las que tengan encabezado.
         var columns = new List<int>();
         if (!string.IsNullOrWhiteSpace(config.VisibleColumns))
@@ -128,7 +134,7 @@ public static partial class TaglistReader
         while (reader.Read())
         {
             var values = columns.Select(i => i < reader.FieldCount ? CellText(reader.GetValue(i)) : "").ToArray();
-            if (values.All(v => v.Length == 0)) continue; // filas vacías o separadores
+            if (values.All(v => v.Length == 0) || sheet.IsPlaceholder(values)) continue; // vacías o reservadas
             sheet.Add(values);
         }
         return sheet;
@@ -182,8 +188,8 @@ public static partial class TaglistReader
         return string.Concat(words.Take(3).Select(w => char.ToUpperInvariant(w[0])));
     }
 
-    // Encabezados de número: "N°", "Nº", "N# ", "NRO", "NUM…", "N.", "NO.", "ID".
-    [GeneratedRegex(@"^(N\s*[°º#]|NRO\b|NUM|N\.|NO\.|ID\b)", RegexOptions.IgnoreCase)]
+    // Encabezados de número: "N°", "Nº", "N#", "No", "No.", "NRO", "NUM…", "N.", "ID".
+    [GeneratedRegex(@"^(N\s*[°º#]|NO\.?$|NO\s|NRO\b|NUM|N\.|ID\b)", RegexOptions.IgnoreCase)]
     private static partial Regex NumberHeader();
 
     private static (int Row, List<string> Headers) GuessHeader(IExcelDataReader reader)

@@ -49,6 +49,9 @@ Decidido con el usuario:
 - **Perfiles de taglist** (las "plantillas de taglist"): hojas, fila de encabezados, columna a pegar y columnas visibles.
   «Detectar hojas» propone todo (encabezado = primera fila con 2+ textos; columna a pegar = la que empieza con N°/Nº/NUM/ID).
 - **Opacidad** ajustable (40–100 %) para ruleta y taglist; en el taglist también con Ctrl+rueda.
+- Probado con un taglist real (hojas Act, DIn, AIn, PID, Msg, Cnt, Switch, Unit… con columnas No | IO | Code | Text_0…):
+  se reconoce `Code` como tag y `Text_0` como descripción, se ocultan las filas reservadas (sólo No/IO),
+  la rueda salta columnas vacías, y se desmarcan hojas vacías o de configuración.
 - Mejoras a la ruleta: teclas 1–8 eligen y pegan un sector directo (con su número dibujado).
 
 ## Estado (v0.1)

@@ -98,12 +98,20 @@ public sealed class TaglistSession
         _fieldOverride = -1;
     }
 
-    /// <summary>Rueda: siguiente / anterior columna de la fila (da la vuelta).</summary>
+    /// <summary>Rueda: siguiente / anterior columna con contenido de la fila (da la vuelta).</summary>
     public void MoveField(int steps)
     {
-        if (Selected is not { } row || row.Sheet.Columns.Count == 0) return;
-        var count = row.Sheet.Columns.Count;
-        _fieldOverride = ((FieldIndex + steps) % count + count) % count;
+        if (Selected is not { } row) return;
+        var useful = row.UsefulColumns;
+        if (useful.Count == 0) return;
+        var position = Math.Max(0, IndexOf(useful, FieldIndex));
+        _fieldOverride = useful[((position + steps) % useful.Count + useful.Count) % useful.Count];
+    }
+
+    private static int IndexOf(IReadOnlyList<int> list, int value)
+    {
+        for (var i = 0; i < list.Count; i++) if (list[i] == value) return i;
+        return -1;
     }
 
     public void SelectField(int index)
@@ -156,25 +164,30 @@ public sealed class TaglistSession
         : Book.Sheets[sheetIndex].Rows;
 
     /// <summary>
-    /// Orden: primero las filas con una celda idéntica a lo buscado, luego las que tienen una celda que empieza igual,
-    /// luego las que lo contienen. Dentro de cada grupo, el orden del Excel.
+    /// Orden: celda idéntica → celda que empieza igual → celda que lo contiene. En cada nivel van primero
+    /// las coincidencias en el tag (Code) o el número (columna a pegar) y después las de otras columnas
+    /// (descripción, etc.). Dentro de cada grupo, el orden del Excel.
     /// </summary>
     private static IReadOnlyList<TagRow> Search(IEnumerable<TagRow> rows, string q)
     {
         if (q.Length == 0) return rows.Take(MaxResults * 20).ToList();
 
-        var buckets = new[] { new List<TagRow>(), new List<TagRow>(), new List<TagRow>() };
+        var buckets = new List<TagRow>[6];
+        for (var i = 0; i < buckets.Length; i++) buckets[i] = new List<TagRow>();
+
         foreach (var row in rows)
         {
-            var best = 3;
-            foreach (var cell in row.Normalized)
+            var best = int.MaxValue;
+            for (var c = 0; c < row.Normalized.Length && best > 0; c++)
             {
+                var cell = row.Normalized[c];
                 if (cell.Length == 0) continue;
-                if (cell == q) { best = 0; break; }
-                if (best > 1 && cell.StartsWith(q, StringComparison.Ordinal)) best = 1;
-                else if (best > 2 && cell.Contains(q, StringComparison.Ordinal)) best = 2;
+                var level = cell == q ? 0 : cell.StartsWith(q, StringComparison.Ordinal) ? 1 : cell.Contains(q, StringComparison.Ordinal) ? 2 : -1;
+                if (level < 0) continue;
+                var key = level * 2 + (c == row.Sheet.TitleColumn || c == row.Sheet.PasteColumn ? 0 : 1);
+                best = Math.Min(best, key);
             }
-            if (best < 3) buckets[best].Add(row);
+            if (best != int.MaxValue) buckets[best].Add(row);
         }
         return buckets.SelectMany(b => b).Take(MaxResults).ToList();
     }

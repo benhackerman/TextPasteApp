@@ -305,7 +305,7 @@ public partial class TaglistWindow : Window
         _selectedField = null;
         if (s.Selected is not { } row) return;
 
-        for (var i = 0; i < row.Sheet.Columns.Count; i++)
+        foreach (var i in row.UsefulColumns) // las columnas vacías no se muestran
         {
             var index = i;
             var on = i == s.FieldIndex;

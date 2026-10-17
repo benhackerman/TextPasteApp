@@ -18,7 +18,8 @@ namespace TextPasteApp.Overlay;
 public partial class RadialMenuWindow : Window
 {
     // Medidas en píxeles lógicos (DIP). El centro del canvas es el centro de la ruleta.
-    private const double Size = 400, C = Size / 2;
+    // Ancho 400; alto 470 = ruleta (400) + franja de detalle abajo (sólo visible al apuntar un sector).
+    private const double Size = 400, FullHeight = 470, C = Size / 2;
     private const double InnerR = 70, OuterR = 172, DeadZone = 42;
 
     private static readonly Brush Bg = Frozen("#EE16181E");
@@ -119,7 +120,7 @@ public partial class RadialMenuWindow : Window
     /// </summary>
     private void PlaceAt(Win32.POINT cursor, bool moveCursor)
     {
-        var center = WindowPlacement.CenterOn(_hwnd, cursor, Size, Size);
+        var center = WindowPlacement.AnchorAt(_hwnd, cursor, Size, FullHeight, C, C);
         if (moveCursor && (center.X != cursor.X || center.Y != cursor.Y))
             Win32.SetCursorPos(center.X, center.Y);
         _centerPx = center;
@@ -250,10 +251,44 @@ public partial class RadialMenuWindow : Window
             AddText(msg, C - 50, C - 20, 100, 10.5, Muted, FontWeights.Normal, maxLines: 3, height: 42, center: true);
         }
 
+        if (s.Selected is { } pointed) DrawDetail(pointed, accent);
+
         if (s.PageCount > 1)
             AddText($"pág. {s.Page + 1}/{s.PageCount}", C - 40, C + 24, 80, 9.5, Muted, FontWeights.Normal);
         if (s.TemplateIndex > 0)
             AddChip(s.Template.Name, C + OuterR - 4, accent);
+    }
+
+    /// <summary>Franja bajo la ruleta: el texto completo del elemento apuntado y de dónde se copió.</summary>
+    private void DrawDetail(PickItem item, Brush accent)
+    {
+        var panel = new StackPanel();
+        panel.Children.Add(new TextBlock
+        {
+            Text = item.Text.Replace("\r", "").Trim(),
+            FontSize = 11.5,
+            Foreground = TextBrush,
+            TextWrapping = TextWrapping.Wrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxHeight = 47,
+            FontFamily = new FontFamily("Consolas"),
+        });
+        if (item.Description.Length > 0)
+            panel.Children.Add(new TextBlock { Text = item.Description, FontSize = 10, Foreground = Muted, Margin = new Thickness(0, 2, 0, 0) });
+
+        var border = new Border
+        {
+            Child = panel,
+            Width = 340,
+            Background = Bg,
+            BorderBrush = accent,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(9, 5, 9, 6),
+        };
+        Canvas.SetLeft(border, C - 170);
+        Canvas.SetTop(border, C + OuterR + 14);
+        Drawing.Children.Add(border);
     }
 
     /// <summary>Puntos que indican la fuente activa (la activa es una píldora alargada).</summary>

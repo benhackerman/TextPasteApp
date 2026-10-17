@@ -80,6 +80,12 @@
                             <ComboBox x:Name="SlicesBox" Width="70" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="Pausa en secuencias:" VerticalAlignment="Center" Width="170" />
+                            <TextBox x:Name="SequenceDelayBox" Width="70" />
+                            <TextBlock Text="ms entre valores (súbela si el SCADA no alcanza a recibirlos)" Margin="8,0,0,0"
+                                       VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <TextBlock Text="No guardar textos de más de:" VerticalAlignment="Center" Width="170" />
                             <TextBox x:Name="MaxLengthBox" Width="70" />
                             <TextBlock Text="caracteres (las contraseñas de gestores como KeePass nunca se guardan)" Margin="8,0,0,0"
@@ -239,6 +245,7 @@
                                 <DataGridTextColumn Header="Columna a pegar" Binding="{Binding PasteColumn}" Width="120" />
                                 <DataGridTextColumn Header="Columnas visibles" Binding="{Binding VisibleColumns}" Width="*" />
                                 <DataGridTextColumn Header="Secuencia (Shift+Enter)" Binding="{Binding Sequence}" Width="*" />
+                                <DataGridComboBoxColumn x:Name="SequenceKeyColumn" Header="Entre valores" SelectedItemBinding="{Binding SequenceKey}" Width="95" />
                             </DataGrid.Columns>
                         </DataGrid>
                         <DataGrid Grid.Row="1" x:Name="PreviewGrid" Margin="0,8,0,0" IsReadOnly="True" AutoGenerateColumns="True"

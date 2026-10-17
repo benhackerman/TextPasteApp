@@ -418,7 +418,7 @@ public sealed class AppController : IDisposable
     private void OnTextCopied(string text)
     {
         if (DateTime.UtcNow < _ignoreClipboardUntil) return; // lo pusimos nosotros al pegar
-        _history.Add(text);
+        _history.Add(text, Win32.ForegroundAppName(), DateTime.Now);
     }
 
     // ───────────────────────── Ruleta ─────────────────────────
@@ -641,8 +641,9 @@ public sealed class AppController : IDisposable
             _usage.RecordTaglist(_taglistProject.Name, row, string.Join(" ⇥ ", values),
                 isSequence ? values.Count : 1, _settings.SecondsSavedTaglist);
 
+        var separator = SequenceKeys.VirtualKey(session.Selected?.Sheet.SequenceKey ?? "Tab");
         _taglistWindow.Dismiss();
-        if (values is { Count: > 0 }) Paste(values, isSequence);
+        if (values is { Count: > 0 }) Paste(values, isSequence, separator);
     }
 
     /// <summary>Ctrl+Tab en el taglist: cambia a la ruleta (historial/favoritos) en modo buscador.</summary>
@@ -713,11 +714,12 @@ public sealed class AppController : IDisposable
         return editor.ShowDialog() == true;
     }
 
-    private void Paste(IReadOnlyList<string> values, bool sequence)
+    private void Paste(IReadOnlyList<string> values, bool sequence, int separatorVk = Win32.VK_TAB)
     {
-        _ignoreClipboardUntil = DateTime.UtcNow.AddSeconds(sequence ? 1.5 + values.Count * 0.3 : 1.5);
+        var delay = Math.Clamp(_settings.SequenceDelayMs, 30, 2000);
+        _ignoreClipboardUntil = DateTime.UtcNow.AddSeconds(sequence ? 1.5 + values.Count * (delay * 2 / 1000.0) : 1.5);
         _ = sequence
-            ? Paster.PasteSequenceAsync(values, _targetWindow, _settings.RestoreClipboardAfterPaste)
+            ? Paster.PasteSequenceAsync(values, _targetWindow, _settings.RestoreClipboardAfterPaste, separatorVk, delay)
             : Paster.PasteAsync(values[0], _targetWindow, _settings.RestoreClipboardAfterPaste);
     }
 

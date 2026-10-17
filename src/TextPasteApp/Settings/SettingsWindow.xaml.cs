@@ -90,6 +90,8 @@ public partial class SettingsWindow : Window
         SlicesBox.ItemsSource = new[] { 6, 8, 10, 12 };
         SlicesBox.SelectedItem = _settings.SlicesPerPage is 6 or 8 or 10 or 12 ? _settings.SlicesPerPage : 8;
         MaxLengthBox.Text = _settings.MaxHistoryTextLength.ToString();
+        SequenceDelayBox.Text = _settings.SequenceDelayMs.ToString();
+        SequenceKeyColumn.ItemsSource = SequenceKeys.All;
         SecondsTaglistBox.Text = _settings.SecondsSavedTaglist.ToString();
         SecondsRingBox.Text = _settings.SecondsSavedRing.ToString();
         SecondsFunctionBox.Text = _settings.SecondsSavedFunction.ToString();
@@ -106,7 +108,9 @@ public partial class SettingsWindow : Window
     }
 
     private void RefreshHistoryList() =>
-        HistoryList.ItemsSource = _history.Items.Select(s => (s.Pinned ? "• " : "") + s.Text.Replace("\r", "").Replace('\n', ' ')).ToList();
+        HistoryList.ItemsSource = _history.Items.Select(s =>
+            (s.Pinned ? "• " : "") + s.Text.Replace("\r", "").Replace('\n', ' ') +
+            (s.SourceApp.Length > 0 || s.CopiedAt != null ? $"   ({s.SourceApp}{(s.CopiedAt is { } at ? " " + at.ToString("dd-MM HH:mm") : "")})" : "")).ToList();
 
     private void HistoryPin_Click(object sender, RoutedEventArgs e)
     {
@@ -718,6 +722,7 @@ public partial class SettingsWindow : Window
         _settings.TaglistProfiles = _profiles;
         _settings.ActiveProfile = _profile.Name;
         _settings.MaxHistoryTextLength = Math.Clamp(ParseInt(MaxLengthBox.Text, 2000), 20, 100_000);
+        _settings.SequenceDelayMs = Math.Clamp(ParseInt(SequenceDelayBox.Text, 120), 30, 2000);
         _settings.SecondsSavedTaglist = Math.Clamp(ParseInt(SecondsTaglistBox.Text, 20), 0, 600);
         _settings.SecondsSavedRing = Math.Clamp(ParseInt(SecondsRingBox.Text, 4), 0, 600);
         _settings.AutoUpdate = AutoUpdateBox.IsChecked == true;

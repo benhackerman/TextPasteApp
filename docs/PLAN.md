@@ -39,6 +39,12 @@ aparece un cuadro de búsqueda, Enter pega y la app de destino recupera el foco 
 | DPI | Manifest PerMonitorV2 + posición en píxeles físicos | Ruleta nítida y centrada en monitores con distinto escalado |
 | Distribución | `.exe` único autocontenido desde GitHub Actions | Se puede probar en el PC del trabajo sin instalar nada |
 
+## v0.6 — historial con origen y secuencias flexibles
+
+- Cada texto del historial guarda el programa de origen (Excel, TIA Portal, Step 7…) y la hora; se puede buscar por ellos.
+- La ruleta muestra, sólo al apuntar un sector, una franja con el texto completo y su origen.
+- Secuencias: tecla entre valores por hoja (Tab, Enter, Abajo, Derecha) y pausa configurable (ms).
+
 ## v0.5 — vistas compactas y AWL que entiende variables
 
 - Todas las vistas flotantes compactas: ruleta de 400 px sin línea de ayuda; buscador de funciones sin ayuda
@@ -116,9 +122,7 @@ Cosas que no se pueden verificar sin Windows real; anota lo que falle y lo vemos
 
 ## Próximos pasos (ideas, en orden sugerido)
 
-1. **Ajustes tras la primera prueba real** (velocidad del toque, tamaño de la ruleta, textos).
-2. Historial: mostrar de qué programa se copió y vista previa del texto completo al apuntar.
-3. Secuencias con otras teclas entre valores (Enter, flechas) según el formulario del SCADA.
+1. **Ajustes tras la primera prueba real** (velocidad del toque, tamaño de la ruleta, textos, pausas).
 3. **Filtro por columna/área** del taglist (p. ej. sólo área 310) para listas gigantes.
 4. **Varias plantillas por fuente** (una por defecto para taglist y otra para historial).
 5. **Secuencias**: pegar varios campos seguidos con Tab entre ellos (tag → Tab → valor → Tab → descripción).

@@ -221,6 +221,43 @@ internal static class Win32
         return titles;
     }
 
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    /// <summary>Nombre amigable del programa de la ventana activa ("Excel", "TIA Portal"…), o "".</summary>
+    public static string ForegroundAppName()
+    {
+        try
+        {
+            GetWindowThreadProcessId(GetForegroundWindow(), out var pid);
+            if (pid == 0) return "";
+            using var process = System.Diagnostics.Process.GetProcessById((int)pid);
+            return FriendlyAppName(process.ProcessName);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return "";
+        }
+    }
+
+    private static string FriendlyAppName(string process) => process.ToLowerInvariant() switch
+    {
+        "excel" => "Excel",
+        "winword" => "Word",
+        "notepad" => "Bloc de notas",
+        "notepad++" => "Notepad++",
+        "siemens.automation.portal" => "TIA Portal",
+        "s7tgtopx" or "s7kafapx" or "s7epaapx" => "Step 7",
+        "chrome" => "Chrome",
+        "msedge" => "Edge",
+        "firefox" => "Firefox",
+        "outlook" => "Outlook",
+        "teams" or "ms-teams" => "Teams",
+        "explorer" => "Explorador",
+        "code" => "VS Code",
+        _ => process.Length > 0 ? char.ToUpperInvariant(process[0]) + process[1..] : "",
+    };
+
     public static bool IsKeyDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
 
     public static POINT CursorPosition()

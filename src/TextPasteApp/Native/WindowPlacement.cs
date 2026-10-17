@@ -42,4 +42,22 @@ internal static class WindowPlacement
 
         Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, x, y, 0, 0, Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
     }
+
+    /// <summary>
+    /// Coloca la ventana de modo que el punto (anchorX, anchorY) de la ventana (en DIP) quede sobre el punto de
+    /// pantalla, sin salirse del monitor. Devuelve dónde quedó realmente ese punto (píxeles físicos).
+    /// </summary>
+    public static Win32.POINT AnchorAt(IntPtr hwnd, Win32.POINT point, double widthDip, double heightDip, double anchorX, double anchorY)
+    {
+        var (work, scale) = Win32.MonitorAt(point);
+        var w = (int)Math.Round(widthDip * scale);
+        var h = (int)Math.Round(heightDip * scale);
+        var ax = (int)Math.Round(anchorX * scale);
+        var ay = (int)Math.Round(anchorY * scale);
+
+        var x = Math.Clamp(point.X - ax, work.Left, Math.Max(work.Left, work.Right - w));
+        var y = Math.Clamp(point.Y - ay, work.Top, Math.Max(work.Top, work.Bottom - h));
+        Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, x, y, w, h, Win32.SWP_NOACTIVATE);
+        return new Win32.POINT { X = x + ax, Y = y + ay };
+    }
 }

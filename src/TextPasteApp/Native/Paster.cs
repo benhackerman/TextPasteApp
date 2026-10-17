@@ -37,8 +37,10 @@ internal static class Paster
     /// Pega varios valores seguidos con Tab entre ellos, para llenar un formulario de una pasada.
     /// Un valor vacío no pega nada pero igual avanza con Tab (así cada valor cae en su campo).
     /// </summary>
-    public static async Task PasteSequenceAsync(System.Collections.Generic.IReadOnlyList<string> values, IntPtr targetWindow, bool restoreClipboard)
+    public static async Task PasteSequenceAsync(System.Collections.Generic.IReadOnlyList<string> values, IntPtr targetWindow,
+        bool restoreClipboard, int separatorVk = Win32.VK_TAB, int delayMs = 120)
     {
+        delayMs = Math.Clamp(delayMs, 30, 2000);
         if (values.Count == 0) return;
         var previous = restoreClipboard ? ClipboardHelper.TryGetText() : null;
 
@@ -54,12 +56,12 @@ internal static class Paster
             if (values[i].Length > 0 && ClipboardHelper.TrySetText(values[i]))
             {
                 SendCtrlV();
-                await Task.Delay(120); // que la app alcance a leer el portapapeles antes del siguiente
+                await Task.Delay(delayMs); // que la app alcance a leer el portapapeles antes del siguiente
             }
             if (i < values.Count - 1)
             {
-                Send(Key(Win32.VK_TAB, down: true), Key(Win32.VK_TAB, down: false));
-                await Task.Delay(80);
+                Send(Key(separatorVk, down: true), Key(separatorVk, down: false));
+                await Task.Delay(Math.Max(40, delayMs * 2 / 3));
             }
         }
 

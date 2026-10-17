@@ -24,10 +24,14 @@ public sealed class TaglistSheet
     /// <summary>Columnas que se pegan con Shift+Enter, en orden, separadas por Tab (vacía = sin secuencia).</summary>
     public IReadOnlyList<int> SequenceColumns { get; }
 
+    /// <summary>Tecla entre valores de la secuencia (ver <see cref="SequenceKeys"/>).</summary>
+    public string SequenceKey { get; }
+
     public TaglistSheet(string name, string shortName, IReadOnlyList<string> columns, int pasteColumn,
-        IReadOnlyList<int>? sequenceColumns = null)
+        IReadOnlyList<int>? sequenceColumns = null, string sequenceKey = "Tab")
     {
         SequenceColumns = sequenceColumns ?? Array.Empty<int>();
+        SequenceKey = SequenceKeys.Normalize(sequenceKey);
         Name = name;
         Short = string.IsNullOrWhiteSpace(shortName) ? name : shortName;
         Columns = columns;
@@ -122,4 +126,31 @@ public sealed class TaglistBook
     public int RowCount => Sheets.Sum(s => s.Rows.Count);
 
     public TaglistBook(IReadOnlyList<TaglistSheet> sheets) => Sheets = sheets;
+}
+
+/// <summary>Teclas posibles entre los valores de una secuencia.</summary>
+public static class SequenceKeys
+{
+    public static readonly string[] All = { "Tab", "Enter", "Abajo", "Derecha" };
+
+    public static string Normalize(string? key) =>
+        All.FirstOrDefault(k => string.Equals(k, key?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? "Tab";
+
+    /// <summary>Código de tecla virtual de Windows.</summary>
+    public static int VirtualKey(string key) => Normalize(key) switch
+    {
+        "Enter" => 0x0D,
+        "Abajo" => 0x28,
+        "Derecha" => 0x27,
+        _ => 0x09,
+    };
+
+    /// <summary>Símbolo para mostrar entre columnas: ⇥ ↵ ↓ →.</summary>
+    public static string Symbol(string key) => Normalize(key) switch
+    {
+        "Enter" => "↵",
+        "Abajo" => "↓",
+        "Derecha" => "→",
+        _ => "⇥",
+    };
 }

@@ -167,7 +167,7 @@ public static partial class TaglistReader
         }
 
         var names = columns.Select(i => i < headers.Count && headers[i].Length > 0 ? headers[i] : ColumnLetter(i)).ToList();
-        var sheet = new TaglistSheet(name, config.ShortName, names, Math.Max(0, columns.IndexOf(pasteIndex)), sequence);
+        var sheet = new TaglistSheet(name, config.ShortName, names, Math.Max(0, columns.IndexOf(pasteIndex)), sequence, config.SequenceKey);
 
         while (reader.Read())
         {

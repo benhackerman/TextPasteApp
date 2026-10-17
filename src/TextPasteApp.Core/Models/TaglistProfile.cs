@@ -52,6 +52,9 @@ public sealed class SheetProfile
     /// </summary>
     public string Sequence { get; set; } = "";
 
+    /// <summary>Tecla entre los valores de la secuencia: "Tab" (por defecto), "Enter", "Abajo" o "Derecha".</summary>
+    public string SequenceKey { get; set; } = "Tab";
+
     [JsonIgnore]
     public string DisplayShort => string.IsNullOrWhiteSpace(ShortName) ? SheetName : ShortName;
 }

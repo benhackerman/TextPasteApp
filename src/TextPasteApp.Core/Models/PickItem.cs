@@ -47,7 +47,11 @@ public sealed class PickItem
             ["tag"] = title,
             ["desc"] = "",
         };
-        return new PickItem(title, s.Text, "", fields) { Pinned = s.Pinned };
+        // La descripción (programa y hora) también sirve para buscar: "excel" encuentra lo copiado desde Excel.
+        var origin = s.SourceApp.Length > 0 && s.CopiedAt is { } at ? $"{s.SourceApp} · {at:HH:mm}"
+            : s.SourceApp.Length > 0 ? s.SourceApp
+            : s.CopiedAt is { } t ? $"{t:dd-MM HH:mm}" : "";
+        return new PickItem(title, s.Text, origin, fields) { Pinned = s.Pinned };
     }
 
     private static string FirstLine(string text)

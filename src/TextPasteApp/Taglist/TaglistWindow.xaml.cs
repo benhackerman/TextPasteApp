@@ -250,7 +250,8 @@ public partial class TaglistWindow : Window
 
         if (s.Selected is { } selected && selected.Sheet.SequenceColumns.Count > 0)
         {
-            SequenceText.Text = "Shift+Enter: " + string.Join(" ⇥ ", selected.Sheet.SequenceColumns.Select(c => selected.Sheet.Columns[c]));
+            var symbol = $" {SequenceKeys.Symbol(selected.Sheet.SequenceKey)} ";
+            SequenceText.Text = "Shift+Enter: " + string.Join(symbol, selected.Sheet.SequenceColumns.Select(c => selected.Sheet.Columns[c]));
             SequenceText.Visibility = Visibility.Visible;
         }
         else SequenceText.Visibility = Visibility.Collapsed;

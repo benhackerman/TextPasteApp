@@ -33,7 +33,10 @@ public sealed class ClipboardHistory
     }
 
     /// <summary>Agrega un texto. Si ya existía, lo sube al primer lugar. Devuelve false si se ignoró.</summary>
-    public bool Add(string? text)
+    public bool Add(string? text) => Add(text, "", null);
+
+    /// <summary>Agrega un texto copiado, con el programa de origen y la hora.</summary>
+    public bool Add(string? text, string sourceApp, DateTime? copiedAt)
     {
         if (!IsValid(text) || text!.Length > MaxLength) return false;
 
@@ -43,7 +46,7 @@ public sealed class ClipboardHistory
         if (existing == pinnedCount) return false;                  // ya es el más nuevo
         if (existing > 0) _items.RemoveAt(existing);
 
-        _items.Insert(pinnedCount, new Snippet(text));
+        _items.Insert(pinnedCount, new Snippet(text) { SourceApp = sourceApp, CopiedAt = copiedAt });
         Trim();
         Changed?.Invoke();
         return true;

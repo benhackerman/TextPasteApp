@@ -65,6 +65,9 @@ public sealed class AppSettings
     /// <summary>Los textos más largos que esto no se guardan en el historial.</summary>
     public int MaxHistoryTextLength { get; set; } = 2000;
 
+    /// <summary>Pausa entre los valores de una secuencia, en milisegundos (súbela si el SCADA es lento).</summary>
+    public int SequenceDelayMs { get; set; } = 120;
+
     /// <summary>Buscar versiones nuevas en GitHub al iniciar.</summary>
     public bool AutoUpdate { get; set; } = true;
 

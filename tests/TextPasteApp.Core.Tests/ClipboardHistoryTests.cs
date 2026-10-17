@@ -57,3 +57,33 @@ public class ClipboardHistoryPinTests
         Assert.True(h.Add("12345"));
     }
 }
+
+public class ClipboardHistorySourceTests
+{
+    [Fact]
+    public void KeepsSourceAppAndTimeAndMakesThemSearchable()
+    {
+        var h = new ClipboardHistory(10);
+        h.Add("RCP.B1", "EXCEL", new DateTime(2026, 10, 18, 10, 32, 0));
+
+        Assert.Equal("EXCEL", h.Items[0].SourceApp);
+        var item = TextPasteApp.Core.Models.PickItem.FromSnippet(h.Items[0]);
+        Assert.Equal("EXCEL · 10:32", item.Description);
+        Assert.Single(TextPasteApp.Core.Logic.TextSearch.Filter(new[] { item }, "excel"));
+    }
+}
+
+public class SequenceKeyTests
+{
+    [Theory]
+    [InlineData("enter", "Enter", 0x0D, "↵")]
+    [InlineData("Abajo", "Abajo", 0x28, "↓")]
+    [InlineData("", "Tab", 0x09, "⇥")]
+    [InlineData("cualquiera", "Tab", 0x09, "⇥")]
+    public void NormalizesAndMapsKeys(string input, string normalized, int vk, string symbol)
+    {
+        Assert.Equal(normalized, TextPasteApp.Core.Models.SequenceKeys.Normalize(input));
+        Assert.Equal(vk, TextPasteApp.Core.Models.SequenceKeys.VirtualKey(input));
+        Assert.Equal(symbol, TextPasteApp.Core.Models.SequenceKeys.Symbol(input));
+    }
+}

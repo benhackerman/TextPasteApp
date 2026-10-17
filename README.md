@@ -33,7 +33,7 @@ Hay **tres atajos**: ruleta, taglist y funciones.
 
 | Otras teclas | |
 |---|---|
-| **Shift + Enter** | Pega la **secuencia** de la hoja: varios valores con Tab entre ellos (llena el formulario de una pasada) |
+| **Shift + Enter** | Pega la **secuencia** de la hoja: varios valores con Tab, Enter, ↓ o → entre ellos (se elige por hoja) para llenar el formulario de una pasada |
 | **Ctrl + D** | Marca / desmarca la fila como hecha ✓ (pegar ya la marca sola) |
 | **Tab / Shift+Tab** | Hoja siguiente / anterior («Todas» busca en el libro completo) |
 | **Ctrl + 1…9** | Hoja directa (Ctrl + 0 = Todas) |
@@ -99,6 +99,8 @@ gráfico de los últimos 30 días, lo que más pegas y el **avance de cada proye
 - **Se actualiza sola**: busca versiones nuevas en GitHub al iniciar; bandeja → «Actualizar».
 - **Respaldo**: Configuración → General → Exportar/Importar respaldo (configuración, historial y estadísticas).
 - Historial: **fijar** elementos (tecla P en la ruleta) y no se guardan contraseñas copiadas desde gestores como KeePass.
+  Cada texto recuerda **de qué programa y a qué hora** se copió; al apuntar un sector de la ruleta aparece abajo
+  el texto completo con su origen (y en el buscador puedes escribir «excel» para ver lo copiado desde Excel).
 
 Las **plantillas** envuelven el valor antes de pegarlo: `PLC1.MC_{valor}.CMD` + valor `23` → `PLC1.MC_23.CMD`.
 

@@ -68,3 +68,30 @@ public class FunctionTests
         Assert.EndsWith("= A 4.1", s.Preview);
     }
 }
+
+public class FunctionVariableTests
+{
+    [Fact]
+    public void ChangingADetectedVariableRewritesTheWholeBlock()
+    {
+        var f = new CodeFunction
+        {
+            Name = "Marcha",
+            Code = "      U     E 0.0\n      S     M 10.0\n      U     M 10.0\n      =     A 4.1\n      CALL  FB 100 , DB12\n      U     DB12.DBX0.0",
+        };
+        var s = new FunctionSession(new[] { f });
+
+        Assert.Equal(new[] { "E0.0", "M10.0", "A4.1", "FB100", "DB12", "DB12.DBX0.0" }, s.Variables.Select(v => v.Key));
+        var m10 = s.Variables.Single(v => v.Key == "M10.0");
+        Assert.Equal("M 10.0", s.VariableValue(m10));
+
+        s.SetVariable("M10.0", "M 20.0");
+        s.SetVariable("DB12", "DB40");
+        Assert.True(s.IsVariableChanged(m10));
+        Assert.Contains("S     M 20.0", s.Preview);
+        Assert.Contains("U     M 20.0", s.Preview);
+        Assert.Contains("CALL  FB 100 , DB40", s.Preview);
+        Assert.Contains("DB40.DBX0.0", s.Preview);
+        Assert.DoesNotContain("10.0", s.Preview);
+    }
+}

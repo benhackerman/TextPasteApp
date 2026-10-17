@@ -67,6 +67,12 @@ Guarda bloques de código para pegarlos de nuevo y búscalos por nombre, categor
 - **Parámetros `{{nombre}}`:** se piden al pegar y se recuerda el último valor. Si se llaman como una columna del taglist
   (`{{No}}`, `{{Code}}`, `{{Text_0}}`, `{{valor}}`…) se rellenan solos con la última fila elegida.
 - **Desde el taglist:** busca el actuador, **Ctrl+F** → elige la función → Enter: pega el bloque AWL de ese actuador.
+- **Variables reconocidas:** la app entiende AWL (alemán e inglés): separa instrucciones (`U`, `L`, `T`, `CALL`, `SPB`, `==I`…)
+  de variables (`E 0.0`, `M 10.1`, `MW 20`, `DB12.DBX0.0`, `T 5`, `Z 3`, `FB 100`, `"Símbolo"`, `#temp`…).
+  En el buscador cada variable tiene su cuadro (violeta): escribe otra y se cambia **en todo el bloque**
+  antes de pegar (verde = cambiada). Cambiar `DB12` cambia también `DB12.DBX…`, `DB12.DBW…`.
+  La vista previa viene coloreada: azul instrucción, violeta variable, naranjo constante, gris comentario.
+- En el editor, una variable reconocida se puede **convertir en parámetro** `{{nombre}}` con un clic.
 
 ```
 // {{Code}} - {{Text_0}}

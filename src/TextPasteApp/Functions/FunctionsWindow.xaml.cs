@@ -18,8 +18,8 @@ namespace TextPasteApp.Functions;
 /// </summary>
 public partial class FunctionsWindow : Window
 {
-    private const int VisibleRows = 6;
-    private const int PreviewLines = 12;
+    private const int VisibleRows = 5;
+    private const int PreviewLines = 8;
 
     private static readonly Brush Accent = Frozen("#FFB98CFF");      // violeta: funciones
     private static readonly Brush RowAccent = Frozen("#FF3DDC97");   // verde: viene del taglist
@@ -28,6 +28,12 @@ public partial class FunctionsWindow : Window
     private static readonly Brush DarkText = Frozen("#FF0E1116");
     private static readonly Brush BoxBrush = Frozen("#FF0F1115");
     private static readonly Brush BoxBorder = Frozen("#FF3A3F4B");
+
+    // Colores de la vista previa: instrucción / variable / constante / comentario.
+    private static readonly Brush InstructionBrush = Frozen("#FF7AA2F7");
+    private static readonly Brush VariableBrush = Frozen("#FFB98CFF");
+    private static readonly Brush ConstantBrush = Frozen("#FFE0AF68");
+    private static readonly Brush CommentBrush = Frozen("#FF6B7280");
 
     private IntPtr _hwnd;
     private FunctionSession? _session;
@@ -187,7 +193,10 @@ public partial class FunctionsWindow : Window
         }
     }
 
-    /// <summary>Un cuadro por parámetro. Verde = valor tomado de la fila del taglist.</summary>
+    /// <summary>
+    /// Un cuadro por parámetro {{…}} (verde = tomado de la fila del taglist) y uno por variable AWL reconocida
+    /// (violeta): lo que escribas ahí reemplaza esa variable en todo el código.
+    /// </summary>
     private void RenderParams(FunctionSession s)
     {
         _paramsFor = s.Selected;
@@ -196,18 +205,7 @@ public partial class FunctionsWindow : Window
         {
             var parameter = name;
             var fromRow = s.IsFromRow(parameter);
-            var box = new TextBox
-            {
-                Text = s.ValueOf(parameter),
-                Width = 110,
-                FontFamily = new FontFamily("Consolas"),
-                FontSize = 12,
-                Background = BoxBrush,
-                Foreground = fromRow ? RowAccent : Brushes.White,
-                CaretBrush = Brushes.White,
-                BorderBrush = fromRow ? RowAccent : BoxBorder,
-                Padding = new Thickness(4, 2, 4, 2),
-            };
+            var box = MakeBox(s.ValueOf(parameter), fromRow ? RowAccent : Brushes.White, fromRow ? RowAccent : BoxBorder);
             box.TextChanged += (_, _) =>
             {
                 s.SetValue(parameter, box.Text);
@@ -215,21 +213,81 @@ public partial class FunctionsWindow : Window
                 box.BorderBrush = BoxBorder;
                 RenderPreview(s);
             };
-            var item = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 4) };
-            item.Children.Add(new TextBlock { Text = parameter, Foreground = Muted, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
-            item.Children.Add(box);
-            ParamsPanel.Children.Add(item);
+            ParamsPanel.Children.Add(Field(parameter, box));
+        }
+
+        foreach (var variable in s.Variables)
+        {
+            var v = variable;
+            var box = MakeBox(s.VariableValue(v), VariableBrush, BoxBorder);
+            box.ToolTip = $"{v.Display.Trim()} aparece {v.Count} {(v.Count == 1 ? "vez" : "veces")}. Escribe otra y se cambia en todo el código.";
+            box.TextChanged += (_, _) =>
+            {
+                s.SetVariable(v.Key, box.Text);
+                var changed = s.IsVariableChanged(v);
+                box.Foreground = changed ? RowAccent : VariableBrush;
+                box.BorderBrush = changed ? RowAccent : BoxBorder;
+                RenderPreview(s);
+            };
+            ParamsPanel.Children.Add(Field(v.Count > 1 ? $"×{v.Count}" : "", box));
         }
         ParamsPanel.Visibility = ParamsPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private static TextBox MakeBox(string text, Brush foreground, Brush border) => new()
+    {
+        Text = text,
+        MinWidth = 70,
+        MaxWidth = 170,
+        FontFamily = new FontFamily("Consolas"),
+        FontSize = 12,
+        Background = BoxBrush,
+        Foreground = foreground,
+        CaretBrush = Brushes.White,
+        BorderBrush = border,
+        Padding = new Thickness(4, 1, 4, 1),
+    };
+
+    private static FrameworkElement Field(string label, TextBox box)
+    {
+        var item = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 8, 4) };
+        if (label.Length > 0)
+            item.Children.Add(new TextBlock { Text = label, Foreground = Muted, FontSize = 10, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
+        item.Children.Add(box);
+        return item;
+    }
+
+    /// <summary>Vista previa coloreada: así se ve qué reconoció como instrucción y qué como variable.</summary>
     private void RenderPreview(FunctionSession s)
     {
         var code = s.Preview;
         PreviewBorder.Visibility = code == null ? Visibility.Collapsed : Visibility.Visible;
         if (code == null) return;
+
         var lines = code.Replace("\r\n", "\n").Split('\n');
-        PreviewText.Text = string.Join("\n", lines.Take(PreviewLines)) + (lines.Length > PreviewLines ? $"\n… ({lines.Length - PreviewLines} líneas más)" : "");
+        var visible = string.Join("\n", lines.Take(PreviewLines));
+        var changedKeys = s.Variables.Where(s.IsVariableChanged).Select(v => AwlParser.KeyOf(s.VariableValue(v))).ToHashSet();
+
+        PreviewText.Inlines.Clear();
+        foreach (var token in AwlParser.Tokenize(visible))
+        {
+            var run = new System.Windows.Documents.Run(token.Text);
+            switch (token.Kind)
+            {
+                case AwlTokenKind.Instruction: run.Foreground = InstructionBrush; break;
+                case AwlTokenKind.Variable:
+                    run.Foreground = changedKeys.Contains(token.Key) ? RowAccent : VariableBrush;
+                    if (changedKeys.Contains(token.Key)) run.FontWeight = FontWeights.Bold;
+                    break;
+                case AwlTokenKind.Constant: run.Foreground = ConstantBrush; break;
+                case AwlTokenKind.Comment: run.Foreground = CommentBrush; break;
+                case AwlTokenKind.Label: run.FontWeight = FontWeights.Bold; break;
+                case AwlTokenKind.Parameter: run.Foreground = Frozen("#FFF7768E"); break; // parámetro sin valor
+            }
+            PreviewText.Inlines.Add(run);
+        }
+        if (lines.Length > PreviewLines)
+            PreviewText.Inlines.Add(new System.Windows.Documents.Run($"\n… {lines.Length - PreviewLines} líneas más") { Foreground = CommentBrush });
     }
 
     private static Brush Frozen(string hex)

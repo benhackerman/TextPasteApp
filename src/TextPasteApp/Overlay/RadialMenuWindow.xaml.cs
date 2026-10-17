@@ -18,8 +18,8 @@ namespace TextPasteApp.Overlay;
 public partial class RadialMenuWindow : Window
 {
     // Medidas en píxeles lógicos (DIP). El centro del canvas es el centro de la ruleta.
-    private const double Size = 520, C = Size / 2;
-    private const double InnerR = 92, OuterR = 222, DeadZone = 55;
+    private const double Size = 400, C = Size / 2;
+    private const double InnerR = 70, OuterR = 172, DeadZone = 42;
 
     private static readonly Brush Bg = Frozen("#EE16181E");
     private static readonly Brush SliceFill = Frozen("#E6242833");
@@ -28,7 +28,6 @@ public partial class RadialMenuWindow : Window
     private static readonly Brush TextBrush = Frozen("#FFE8EAED");
     private static readonly Brush Muted = Frozen("#FF9AA0AA");
     private static readonly Brush DarkText = Frozen("#FF0E1116");
-    private static readonly Brush HintBg = Frozen("#DD0E1014");
 
     private IntPtr _hwnd;
     private Win32.POINT _centerPx;
@@ -195,10 +194,9 @@ public partial class RadialMenuWindow : Window
 
         var accent = AccentFor(s.Source);
         DrawRing(s, accent, emptyMessage);
-        DrawHint(s);
 
         Canvas.SetLeft(SearchBox, C - SearchBox.Width / 2);
-        Canvas.SetTop(SearchBox, 4);
+        Canvas.SetTop(SearchBox, 0);
     }
 
     private void DrawRing(OverlaySession s, Brush accent, string? emptyMessage)
@@ -209,7 +207,7 @@ public partial class RadialMenuWindow : Window
         var step = 360.0 / n;
         const double gap = 1.2;
 
-        AddEllipse(OuterR + 8, Frozen("#33000000"), null, 0);
+        AddEllipse(OuterR + 6, Frozen("#33000000"), null, 0);
 
         for (var i = 0; i < n; i++)
         {
@@ -219,7 +217,7 @@ public partial class RadialMenuWindow : Window
 
             Drawing.Children.Add(new Path
             {
-                Data = SliceGeometry(mid - step / 2 + gap, mid + step / 2 - gap, InnerR, isSel ? OuterR + 6 : OuterR),
+                Data = SliceGeometry(mid - step / 2 + gap, mid + step / 2 - gap, InnerR, isSel ? OuterR + 5 : OuterR),
                 Fill = isSel ? accent : has ? SliceFill : EmptyFill,
                 Stroke = Stroke,
                 StrokeThickness = 1,
@@ -229,33 +227,33 @@ public partial class RadialMenuWindow : Window
             if (!_sticky && i < 9)
             {
                 // Número para elegir el sector con el teclado (1–9).
-                var (nx, ny) = RadialGeometry.PointAt(mid, OuterR - 16);
-                AddText((i + 1).ToString(), C + nx - 10, C + ny - 8, 20, 10, isSel ? DarkText : Muted, FontWeights.SemiBold);
+                var (nx, ny) = RadialGeometry.PointAt(mid, OuterR - 12);
+                AddText((i + 1).ToString(), C + nx - 10, C + ny - 7, 20, 9, isSel ? DarkText : Muted, FontWeights.SemiBold);
             }
             var (x, y) = RadialGeometry.PointAt(mid, (InnerR + OuterR) / 2 + 4);
-            AddText((items[i].Pinned ? "• " : "") + items[i].Title, C + x - 56, C + y - 18, 112, 13, isSel ? DarkText : TextBrush,
-                isSel ? FontWeights.SemiBold : FontWeights.Normal, maxLines: 2, height: 36, center: true);
+            AddText((items[i].Pinned ? "• " : "") + items[i].Title, C + x - 44, C + y - 15, 88, 11.5, isSel ? DarkText : TextBrush,
+                isSel ? FontWeights.SemiBold : FontWeights.Normal, maxLines: 2, height: 30, center: true);
         }
 
         // Disco central
-        AddEllipse(InnerR - 8, Bg, accent, 2);
-        AddText(s.Source.DisplayName().ToUpperInvariant(), C - 70, C - 62, 140, 11, accent, FontWeights.Bold);
-        DrawSourceDots(s, C - 44, accent);
+        AddEllipse(InnerR - 6, Bg, accent, 2);
+        AddText(s.Source.DisplayName().ToUpperInvariant(), C - 50, C - 48, 100, 9.5, accent, FontWeights.Bold);
+        DrawSourceDots(s, C - 34, accent);
 
         if (s.Preview is { } preview)
         {
-            AddText(preview, C - 66, C - 30, 132, 13, TextBrush, FontWeights.SemiBold, maxLines: 3, height: 54, center: true);
+            AddText(preview, C - 50, C - 23, 100, 11.5, TextBrush, FontWeights.SemiBold, maxLines: 3, height: 44, center: true);
         }
         else
         {
             var msg = s.Items.Count == 0 ? emptyMessage ?? "Vacío" : $"{s.Items.Count} textos";
-            AddText(msg, C - 66, C - 22, 132, 12, Muted, FontWeights.Normal, maxLines: 3, height: 50, center: true);
+            AddText(msg, C - 50, C - 20, 100, 10.5, Muted, FontWeights.Normal, maxLines: 3, height: 42, center: true);
         }
 
         if (s.PageCount > 1)
-            AddText($"pág. {s.Page + 1}/{s.PageCount}", C - 50, C + 30, 100, 11, Muted, FontWeights.Normal);
+            AddText($"pág. {s.Page + 1}/{s.PageCount}", C - 40, C + 24, 80, 9.5, Muted, FontWeights.Normal);
         if (s.TemplateIndex > 0)
-            AddChip(s.Template.Name, C + 48, accent);
+            AddChip(s.Template.Name, C + OuterR - 4, accent);
     }
 
     /// <summary>Puntos que indican la fuente activa (la activa es una píldora alargada).</summary>
@@ -283,31 +281,11 @@ public partial class RadialMenuWindow : Window
         }
     }
 
-    private void DrawHint(OverlaySession s)
-    {
-        var text = _sticky
-            ? "Escribe para buscar · ↑↓ mover · Enter pegar · Tab fuente · Ctrl+P fijar · Esc"
-            : "Suelta para pegar · Rueda: página · Tab: fuente · 1–8: directo · P: fijar · Esc";
-
-        var block = new TextBlock { Text = text, FontSize = 11, Foreground = Muted };
-        var pill = new Border
-        {
-            Child = block,
-            Background = HintBg,
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(10, 3, 10, 4),
-        };
-        pill.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
-        Canvas.SetLeft(pill, C - pill.DesiredSize.Width / 2);
-        Canvas.SetTop(pill, Size - 30);
-        Drawing.Children.Add(pill);
-    }
-
     private void AddChip(string text, double y, Brush accent)
     {
         var chip = new Border
         {
-            Child = new TextBlock { Text = "✎ " + text, FontSize = 11, Foreground = accent },
+            Child = new TextBlock { Text = "✎ " + text, FontSize = 10, Foreground = accent },
             BorderBrush = accent,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),

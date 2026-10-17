@@ -32,12 +32,11 @@
             <StackPanel x:Name="ResultsPanel" Grid.IsSharedSizeScope="True" />
             <TextBlock x:Name="EmptyText" Foreground="#FF9AA0AA" FontSize="12" TextWrapping="Wrap" MaxWidth="440"
                        Margin="4,4,4,2" Visibility="Collapsed" />
-            <WrapPanel x:Name="ParamsPanel" Margin="2,6,0,0" />
+            <WrapPanel x:Name="ParamsPanel" Margin="2,6,0,0" MaxWidth="780" />
             <Border x:Name="PreviewBorder" Background="#FF0F1115" CornerRadius="6" Padding="8,6" Margin="0,6,0,0">
-                <TextBlock x:Name="PreviewText" FontFamily="Consolas" FontSize="12" Foreground="#FFD7DAE0" MaxHeight="210" />
+                <TextBlock x:Name="PreviewText" FontFamily="Consolas" FontSize="12" Foreground="#FFD7DAE0"
+                           ToolTip="Enter pega · ↑↓ elegir · Tab ir a parámetros y variables · Ctrl+N nueva desde lo copiado · Ctrl+E editar · Esc" />
             </Border>
-            <TextBlock Margin="4,6,0,0" Foreground="#FF6B7280" FontSize="11"
-                       Text="Enter pega · ↑↓ elegir · Tab parámetros · Ctrl+N nueva desde el portapapeles · Ctrl+E editar · Esc" />
         </StackPanel>
     </Border>
 </Window>

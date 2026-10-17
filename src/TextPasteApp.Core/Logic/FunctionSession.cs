@@ -15,6 +15,8 @@ public sealed class FunctionSession
     private readonly IReadOnlyDictionary<string, string> _lastValues;
     private readonly IReadOnlyDictionary<string, string> _rowFields;
     private readonly Dictionary<string, string> _typed = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _variables = new();
+    private CodeFunction? _variablesFor;
 
     public string Query { get; private set; } = "";
     public IReadOnlyList<CodeFunction> Results { get; private set; } = Array.Empty<CodeFunction>();
@@ -37,6 +39,37 @@ public sealed class FunctionSession
 
     public IReadOnlyList<string> Parameters => Selected is { } f ? CodeTemplate.ParameterNames(f.Code) : Array.Empty<string>();
 
+    /// <summary>Variables AWL reconocidas en el código de la función elegida (M 10.0, DB12, "Símbolo"…).</summary>
+    public IReadOnlyList<AwlVariable> Variables => Selected is { } f ? AwlParser.Variables(f.Code) : Array.Empty<AwlVariable>();
+
+    /// <summary>Valor actual de una variable: el que escribiste o el original.</summary>
+    public string VariableValue(AwlVariable variable)
+    {
+        SyncVariables();
+        return _variables.TryGetValue(variable.Key, out var v) ? v : variable.Display.Trim();
+    }
+
+    public bool IsVariableChanged(AwlVariable variable)
+    {
+        SyncVariables();
+        return _variables.TryGetValue(variable.Key, out var v) && AwlParser.KeyOf(v) != variable.Key;
+    }
+
+    /// <summary>Cambia una variable en todo el código de la función.</summary>
+    public void SetVariable(string key, string value)
+    {
+        SyncVariables();
+        _variables[key] = value;
+    }
+
+    /// <summary>Los cambios de variables valen para la función elegida; al elegir otra se empieza de cero.</summary>
+    private void SyncVariables()
+    {
+        if (ReferenceEquals(_variablesFor, Selected)) return;
+        _variables.Clear();
+        _variablesFor = Selected;
+    }
+
     /// <summary>Valor actual de un parámetro (escrito, de la fila del taglist o el último usado).</summary>
     public string ValueOf(string parameter)
     {
@@ -56,7 +89,16 @@ public sealed class FunctionSession
         Parameters.ToDictionary(p => p, ValueOf, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>El código final con los parámetros rellenados.</summary>
-    public string? Preview => Selected is { } f ? CodeTemplate.Fill(f.Code, CurrentValues) : null;
+    public string? Preview
+    {
+        get
+        {
+            if (Selected is not { } f) return null;
+            SyncVariables();
+            var changed = _variables.Where(v => v.Value.Trim().Length > 0).ToDictionary(v => v.Key, v => v.Value.Trim());
+            return CodeTemplate.Fill(AwlParser.ReplaceVariables(f.Code, changed), CurrentValues);
+        }
+    }
 
     public void SetQuery(string? query)
     {

@@ -39,6 +39,15 @@ aparece un cuadro de búsqueda, Enter pega y la app de destino recupera el foco 
 | DPI | Manifest PerMonitorV2 + posición en píxeles físicos | Ruleta nítida y centrada en monitores con distinto escalado |
 | Distribución | `.exe` único autocontenido desde GitHub Actions | Se puede probar en el PC del trabajo sin instalar nada |
 
+## v0.5 — vistas compactas y AWL que entiende variables
+
+- Todas las vistas flotantes compactas: ruleta de 400 px sin línea de ayuda; buscador de funciones sin ayuda
+  (va en el tooltip de la vista previa), 5 resultados y 8 líneas de vista previa.
+- `AwlParser`: reconoce instrucción / variable / constante / etiqueta / comentario línea por línea
+  (la primera palabra es la instrucción; resuelve L, T y A ambiguos). Mnemónicos alemanes e ingleses.
+- Cambiar una variable la reemplaza en todo el bloque (DB12 también en sus accesos DB12.DBX…).
+- Vista previa coloreada; editor convierte variables en parámetros.
+
 ## v0.4 — funciones (código AWL)
 
 - Biblioteca de funciones (functions.json): nombre, categoría, descripción, código. Se incluye en el respaldo.

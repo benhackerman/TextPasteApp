@@ -24,12 +24,32 @@ public partial class FunctionEditorWindow : Window
         Loaded += (_, _) => (string.IsNullOrWhiteSpace(function.Name) ? NameBox : (Control)CodeBox).Focus();
     }
 
+    private sealed record VariableItem(AwlVariable Variable)
+    {
+        public override string ToString() => Variable.Count > 1 ? $"{Variable.Display.Trim()}  ×{Variable.Count}" : Variable.Display.Trim();
+    }
+
     private void Code_Changed(object sender, TextChangedEventArgs e)
     {
+        VariablesList.ItemsSource = AwlParser.Variables(CodeBox.Text).Select(v => new VariableItem(v)).ToList();
         var names = CodeTemplate.ParameterNames(CodeBox.Text);
         ParamsText.Text = names.Count == 0
             ? "Sin parámetros: se pega tal cual."
             : "Parámetros: " + string.Join(", ", names);
+    }
+
+    /// <summary>Propone un nombre de parámetro: el símbolo sin comillas, o la dirección sin espacios ni puntos.</summary>
+    private void Variable_Selected(object sender, SelectionChangedEventArgs e)
+    {
+        if (VariablesList.SelectedItem is not VariableItem item) return;
+        var key = item.Variable.Key.Trim('"', '#');
+        ParamNameBox.Text = new string(key.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+    }
+
+    private void ToParameter_Click(object sender, RoutedEventArgs e)
+    {
+        if (VariablesList.SelectedItem is not VariableItem item || string.IsNullOrWhiteSpace(ParamNameBox.Text)) return;
+        CodeBox.Text = AwlParser.ReplaceVariable(CodeBox.Text, item.Variable.Key, "{{" + ParamNameBox.Text.Trim() + "}}");
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)

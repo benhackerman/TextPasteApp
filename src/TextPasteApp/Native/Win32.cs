@@ -163,6 +163,11 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int x, int y);
 
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    public const uint SWP_NOSIZE = 0x0001;
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 

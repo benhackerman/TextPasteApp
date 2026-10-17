@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
@@ -355,7 +354,6 @@ public sealed class AppController : IDisposable
         if (_taglistChord.UsesAltOrWin) Paster.SendDummyKey();
 
         _targetWindow = Win32.GetForegroundWindow();
-        var profile = _settings.CurrentProfile();
         var book = _taglist.GetBook();
 
         string? empty = null;
@@ -365,8 +363,7 @@ public sealed class AppController : IDisposable
         else if (book.Sheets.Count == 0) empty = "Ninguna hoja del perfil se encontró en el archivo. ¿Cambió el nombre de las hojas?";
 
         var session = new TaglistSession(book, _settings.LastSheet, _settings.Templates, _settings.ActiveTemplateIndex);
-        var fileName = string.IsNullOrWhiteSpace(profile.FilePath) ? "sin archivo" : Path.GetFileName(profile.FilePath);
-        _taglistWindow.Open(session, Win32.CursorPosition(), _settings.Opacity, $"Perfil «{profile.Name}» · {fileName}", empty);
+        _taglistWindow.Open(session, Win32.CursorPosition(), _settings.Opacity, empty);
     }
 
     private void CloseTaglist(string? text)

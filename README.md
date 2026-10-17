@@ -24,9 +24,10 @@ Hay **dos atajos**:
 ### Taglist — `Ctrl + Shift + T` (buscador con autocompletar)
 
 1. Clic en el campo del SCADA donde va el módulo.
-2. **Ctrl + Shift + T** → se abre el buscador en la última hoja usada, listo para escribir.
+2. **Ctrl + Shift + T** → aparece justo bajo el puntero una ventana compacta: una línea para escribir y una
+   tabla con los resultados (en la última hoja usada). Filtra con cada letra.
 3. Escribe lo que sepas: tag, número, parte de la descripción. Busca en **todas las columnas** de la fila.
-4. **↑ ↓** cambian de fila · **Rueda** elige qué columna de esa fila pegar (parte en la columna por defecto de la hoja) · **→** acepta el autocompletado.
+4. La **celda verde** es lo que se pega. **↑ ↓** cambian de fila · **Rueda** cambia de columna (parte en la columna por defecto de la hoja) · **→** acepta el autocompletado.
 5. **Enter** pega y se cierra.
 
 | Otras teclas | |

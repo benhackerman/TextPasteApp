@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -11,27 +13,28 @@ using TextPasteApp.Native;
 namespace TextPasteApp.Taglist;
 
 /// <summary>
-/// Buscador del taglist. Toma el foco para poder escribir, maneja sus propias teclas sobre un
-/// <see cref="TaglistSession"/> y al final le pide al controlador que pegue (o que cancele).
+/// Buscador compacto del taglist: aparece bajo el puntero con una línea de búsqueda y una tabla de resultados
+/// que se filtra mientras escribes. Maneja sus propias teclas sobre un <see cref="TaglistSession"/> y al final
+/// le pide al controlador que pegue (o que cancele).
+///   ↑↓ fila · rueda columna · → autocompletar · Tab hoja · Ctrl+1…9 hoja · F2 plantilla · Ctrl+rueda opacidad · Enter pega · Esc
 /// </summary>
 public partial class TaglistWindow : Window
 {
-    private const int VisibleRows = 8;
+    private const int VisibleRows = 6;
 
     private static readonly Brush Accent = Frozen("#FF3DDC97");
-    private static readonly Brush AccentSoft = Frozen("#203DDC97");
     private static readonly Brush TextBrush = Frozen("#FFE8EAED");
     private static readonly Brush Muted = Frozen("#FF9AA0AA");
     private static readonly Brush DarkText = Frozen("#FF0E1116");
-    private static readonly Brush ChipBorder = Frozen("#FF3A3F4B");
+    private static readonly Brush RowHighlight = Frozen("#1AFFFFFF");
     private static readonly Brush GhostBrush = Frozen("#FF5B6170");
 
     private IntPtr _hwnd;
     private TaglistSession? _session;
     private string? _emptyMessage;
+    private Win32.POINT _anchor;
     private bool _hiding;
     private bool _settingText;
-    private FrameworkElement? _selectedField;
 
     /// <summary>El usuario eligió un texto (ya con la plantilla aplicada).</summary>
     public event Action<string>? PasteRequested;
@@ -53,7 +56,12 @@ public partial class TaglistWindow : Window
         SearchBox.TextChanged += OnSearchChanged;
         PreviewKeyDown += OnPreviewKeyDown;
         PreviewMouseWheel += OnWheel;
-        TemplateButton.Click += (_, _) => Do(s => s.NextTemplate());
+        SheetText.MouseLeftButtonUp += (_, _) => Do(s => s.NextSheet());
+        // La ventana cambia de tamaño con los resultados: se mantiene pegada al puntero y dentro de la pantalla.
+        SizeChanged += (_, _) =>
+        {
+            if (IsVisible) WindowPlacement.PlaceNear(_hwnd, _anchor);
+        };
         Deactivated += (_, _) =>
         {
             if (IsOpen && !_hiding) Cancelled?.Invoke(); // clic fuera = cancelar
@@ -62,17 +70,19 @@ public partial class TaglistWindow : Window
 
     // ───────────────────────── Mostrar / ocultar ─────────────────────────
 
-    internal void Open(TaglistSession session, Win32.POINT cursor, double opacity, string profileText, string? emptyMessage)
+    internal void Open(TaglistSession session, Win32.POINT cursor, double opacity, string? emptyMessage)
     {
         _session = session;
         _emptyMessage = emptyMessage;
-        ProfileText.Text = profileText;
+        _anchor = cursor;
         SetSearchText("");
 
         new WindowInteropHelper(this).EnsureHandle();
         Opacity = 0;
+        Render();
         Show();
-        WindowPlacement.CenterOn(_hwnd, cursor, Width, Height);
+        UpdateLayout();
+        WindowPlacement.PlaceNear(_hwnd, _anchor);
         Opacity = Math.Clamp(opacity, 0.4, 1);
 
         // Windows sólo deja tomar el foco a quien recibió la última entrada.
@@ -81,7 +91,6 @@ public partial class TaglistWindow : Window
         Win32.SetForegroundWindow(_hwnd);
         SearchBox.Focus();
         Keyboard.Focus(SearchBox);
-        Render();
     }
 
     public void Dismiss()
@@ -184,167 +193,114 @@ public partial class TaglistWindow : Window
     {
         if (_session is not { } s) return;
 
-        RenderSheets(s);
-
         GhostText.Inlines.Clear();
         GhostText.Inlines.Add(new Run(s.Query) { Foreground = Brushes.Transparent });
         GhostText.Inlines.Add(new Run(s.Ghost) { Foreground = GhostBrush });
         Placeholder.Visibility = s.Query.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        var where = s.SheetIndex == TaglistSession.AllSheets ? "todas las hojas" : s.SheetDisplayName;
-        CountText.Text = s.Book.Sheets.Count == 0
-            ? ""
-            : $"{s.Results.Count}{(s.Results.Count >= TaglistSession.MaxResults && s.Query.Length > 0 ? "+" : "")} " +
-              $"{(s.Query.Length > 0 ? "coincidencias" : "filas")} en {where}";
+        var sheet = s.SheetIndex == TaglistSession.AllSheets ? "TODAS" : s.Book.Sheets[s.SheetIndex].Short.ToUpperInvariant();
+        SheetText.Text = s.Book.Sheets.Count == 0 ? "" : $"{sheet} · {s.Results.Count}";
+        TemplateText.Text = "plantilla: " + s.Template.Name;
+        TemplateText.Visibility = s.TemplateIndex > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        RenderResults(s);
-        RenderFields(s);
-
-        PreviewText.Text = s.Preview is { } p ? "→ " + p : "";
-        TemplateButton.Content = "Plantilla: " + s.Template.Name;
+        RenderTable(s);
     }
 
-    private void RenderSheets(TaglistSession s)
+    /// <summary>
+    /// Tabla de resultados. Con una hoja: encabezados + columnas con datos. Con «Todas»: cada fila
+    /// muestra la hoja y sus propias columnas. La celda verde es la que se pega.
+    /// </summary>
+    private void RenderTable(TaglistSession s)
     {
-        SheetsPanel.Children.Clear();
-        AddChip("Todas", TaglistSession.AllSheets, s, "Ctrl+0");
-        for (var i = 0; i < s.Book.Sheets.Count; i++)
-            AddChip(s.Book.Sheets[i].Name, i, s, i < 9 ? $"Ctrl+{i + 1}" : null);
-    }
-
-    private void AddChip(string name, int index, TaglistSession s, string? shortcut)
-    {
-        var active = s.SheetIndex == index;
-        var label = s.Query.Length > 0 ? $"{name}  {s.CountIn(index)}" : name;
-        var chip = new Border
-        {
-            Child = new TextBlock
-            {
-                Text = label,
-                FontSize = 12,
-                Foreground = active ? DarkText : TextBrush,
-                FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal,
-            },
-            Background = active ? Accent : Brushes.Transparent,
-            BorderBrush = active ? Accent : ChipBorder,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(11, 5, 11, 6),
-            Margin = new Thickness(0, 0, 6, 6),
-            Cursor = Cursors.Hand,
-            ToolTip = shortcut,
-        };
-        chip.MouseLeftButtonUp += (_, _) => Do(x => x.SetSheet(index));
-        SheetsPanel.Children.Add(chip);
-    }
-
-    private void RenderResults(TaglistSession s)
-    {
-        ResultsPanel.Children.Clear();
+        Table.Children.Clear();
         if (s.Results.Count == 0)
         {
-            var msg = s.Book.Sheets.Count == 0
+            EmptyText.Text = s.Book.Sheets.Count == 0
                 ? _emptyMessage ?? "El taglist está vacío."
-                : "Sin coincidencias en esta hoja. Tab para buscar en otra, o en «Todas».";
-            ResultsPanel.Children.Add(new TextBlock { Text = msg, Foreground = Muted, FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(6, 12, 6, 0) });
+                : "Sin coincidencias. Tab cambia de hoja.";
+            EmptyText.Visibility = Visibility.Visible;
             return;
         }
+        EmptyText.Visibility = Visibility.Collapsed;
 
-        var showSheet = s.SheetIndex == TaglistSession.AllSheets;
         var (start, rows) = s.Window(VisibleRows);
-        for (var k = 0; k < rows.Count; k++)
+        if (s.SheetIndex != TaglistSession.AllSheets)
         {
-            var index = start + k;
-            var row = rows[k];
-            var on = index == s.RowIndex;
-            var fg = on ? DarkText : TextBrush;
+            var sheet = s.Book.Sheets[s.SheetIndex];
+            // Sólo las columnas que tienen algo en los resultados (más la de pegar).
+            var columns = Enumerable.Range(0, sheet.Columns.Count)
+                .Where(c => c == sheet.PasteColumn || s.Results.Any(r => r[c].Length > 0))
+                .ToList();
 
-            var top = new DockPanel();
-            if (showSheet)
+            Table.Children.Add(MakeRow(columns.Select(c => new Cell(sheet.Columns[c], c, "c" + c, false)).ToList(), header: true, -1, s));
+            for (var k = 0; k < rows.Count; k++)
             {
-                var badge = new TextBlock { Text = row.Sheet.Short, FontSize = 10, FontWeight = FontWeights.Bold, Foreground = fg, Opacity = 0.7, Margin = new Thickness(8, 0, 0, 0) };
-                DockPanel.SetDock(badge, Dock.Right);
-                top.Children.Add(badge);
+                var row = rows[k];
+                Table.Children.Add(MakeRow(columns.Select(c => new Cell(row[c], c, "c" + c, c == sheet.DescriptionColumn)).ToList(), header: false, start + k, s));
             }
-            top.Children.Add(new TextBlock
+        }
+        else
+        {
+            for (var k = 0; k < rows.Count; k++)
             {
-                Text = row.Title.Length > 0 && row.Title != row.PasteValue ? $"{row.PasteValue}  ·  {row.Title}" : row.PasteValue,
-                FontFamily = new FontFamily("Consolas"),
-                FontSize = 13,
-                FontWeight = on ? FontWeights.Bold : FontWeights.Normal,
-                Foreground = fg,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-            });
-
-            var content = new StackPanel();
-            content.Children.Add(top);
-            if (row.Description.Length > 0)
-                content.Children.Add(new TextBlock { Text = row.Description, FontSize = 11, Foreground = fg, Opacity = on ? 0.85 : 0.6, TextTrimming = TextTrimming.CharacterEllipsis });
-
-            var item = new Border
-            {
-                Child = content,
-                Background = on ? Accent : Brushes.Transparent,
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(10, 5, 10, 6),
-                Margin = new Thickness(0, 0, 0, 2),
-                Cursor = Cursors.Hand,
-            };
-            item.MouseLeftButtonDown += (_, e) =>
-            {
-                Do(x => x.SelectRow(index));
-                if (e.ClickCount == 2) Paste();
-            };
-            ResultsPanel.Children.Add(item);
+                var row = rows[k];
+                var cells = new List<Cell> { new(row.Sheet.Short, -1, "sheet", false) };
+                var position = 0;
+                foreach (var c in row.UsefulColumns)
+                    cells.Add(new Cell(row[c], c, "p" + position++, c == row.Sheet.DescriptionColumn));
+                Table.Children.Add(MakeRow(cells, header: false, start + k, s));
+            }
         }
     }
 
-    private void RenderFields(TaglistSession s)
+    private readonly record struct Cell(string Text, int Column, string Group, bool IsText);
+
+    private FrameworkElement MakeRow(IReadOnlyList<Cell> cells, bool header, int rowIndex, TaglistSession s)
     {
-        FieldsPanel.Children.Clear();
-        _selectedField = null;
-        if (s.Selected is not { } row) return;
+        var selectedRow = !header && rowIndex == s.RowIndex;
+        var grid = new Grid { Background = selectedRow ? RowHighlight : Brushes.Transparent };
 
-        foreach (var i in row.UsefulColumns) // las columnas vacías no se muestran
+        for (var i = 0; i < cells.Count; i++)
         {
-            var index = i;
-            var on = i == s.FieldIndex;
-            var name = row.Sheet.Columns[i] + (i == row.Sheet.PasteColumn ? "  · por defecto" : "");
+            var cell = cells[i];
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = cell.Group });
 
-            var content = new StackPanel();
-            content.Children.Add(new TextBlock { Text = name, FontSize = 10, FontWeight = FontWeights.Bold, Foreground = on ? Accent : Muted });
-            content.Children.Add(new TextBlock
+            var selectedCell = selectedRow && cell.Column >= 0 && cell.Column == s.FieldIndex;
+            var text = new TextBlock
             {
-                Text = row[i].Length > 0 ? row[i] : "—",
-                FontFamily = new FontFamily("Consolas"),
-                FontSize = 14,
-                FontWeight = on ? FontWeights.SemiBold : FontWeights.Normal,
-                Foreground = on ? Brushes.White : TextBrush,
-                TextWrapping = TextWrapping.Wrap,
-            });
-
-            var field = new Border
-            {
-                Child = content,
-                Background = on ? AccentSoft : Brushes.Transparent,
-                BorderBrush = on ? Accent : Brushes.Transparent,
-                BorderThickness = new Thickness(2),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(9, 5, 9, 6),
-                Margin = new Thickness(0, 0, 0, 2),
-                Cursor = Cursors.Hand,
+                Text = header ? cell.Text : cell.Text.Length > 0 ? cell.Text : "·",
+                FontFamily = header || cell.IsText || cell.Column < 0 ? new FontFamily("Segoe UI") : new FontFamily("Consolas"),
+                FontSize = header || cell.Column < 0 ? 10 : cell.IsText ? 12 : 13,
+                FontWeight = header || cell.Column < 0 || selectedCell ? FontWeights.SemiBold : FontWeights.Normal,
+                Foreground = selectedCell ? DarkText : header || cell.Column < 0 || cell.Text.Length == 0 ? Muted : TextBrush,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = cell.IsText ? 260 : 150,
+                VerticalAlignment = VerticalAlignment.Center,
             };
-            field.MouseLeftButtonDown += (_, e) =>
+            var border = new Border
             {
-                Do(x => x.SelectField(index));
+                Child = text,
+                Padding = new Thickness(6, header ? 0 : 2, 8, header ? 2 : 3),
+                Background = selectedCell ? Accent : Brushes.Transparent,
+                CornerRadius = new CornerRadius(4),
+            };
+            Grid.SetColumn(border, i);
+            grid.Children.Add(border);
+
+            if (header) continue;
+            var column = cell.Column;
+            border.Cursor = Cursors.Hand;
+            border.MouseLeftButtonDown += (_, e) =>
+            {
+                Do(x =>
+                {
+                    x.SelectRow(rowIndex);
+                    if (column >= 0) x.SelectField(column);
+                });
                 if (e.ClickCount == 2) Paste();
             };
-            FieldsPanel.Children.Add(field);
-            if (on) _selectedField = field;
         }
-
-        // Que la columna elegida siempre quede a la vista aunque la hoja tenga muchas.
-        Dispatcher.BeginInvoke(() => _selectedField?.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
+        return grid;
     }
 
     private static Brush Frozen(string hex)

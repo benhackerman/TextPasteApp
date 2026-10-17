@@ -21,4 +21,25 @@ internal static class WindowPlacement
         Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, cx - w / 2, cy - h / 2, w, h, Win32.SWP_NOACTIVATE);
         return new Win32.POINT { X = cx, Y = cy };
     }
+
+    /// <summary>
+    /// Coloca la ventana (con su tamaño actual) justo debajo del punto, como un autocompletar.
+    /// Si no cabe abajo la pone arriba, y nunca se sale del monitor.
+    /// </summary>
+    public static void PlaceNear(IntPtr hwnd, Win32.POINT anchor)
+    {
+        if (!Win32.GetWindowRect(hwnd, out var rect)) return;
+        var (work, scale) = Win32.MonitorAt(anchor);
+        var w = rect.Right - rect.Left;
+        var h = rect.Bottom - rect.Top;
+        var gap = (int)Math.Round(14 * scale);
+
+        var x = anchor.X - (int)Math.Round(24 * scale);
+        var y = anchor.Y + gap;
+        if (y + h > work.Bottom) y = anchor.Y - gap - h;   // no cabe abajo → arriba
+        x = Math.Clamp(x, work.Left, Math.Max(work.Left, work.Right - w));
+        y = Math.Clamp(y, work.Top, Math.Max(work.Top, work.Bottom - h));
+
+        Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, x, y, 0, 0, Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
+    }
 }

@@ -27,6 +27,13 @@ public sealed class TaglistSheet
     /// <summary>Tecla entre valores de la secuencia (ver <see cref="SequenceKeys"/>).</summary>
     public string SequenceKey { get; }
 
+    /// <summary>Formatos propios de la hoja para la columna principal (vacío = plantillas generales).</summary>
+    public IReadOnlyList<string> PasteFormats { get; init; } = Array.Empty<string>();
+
+    /// <summary>Convierte "A | B | C" en la lista de formatos.</summary>
+    public static IReadOnlyList<string> ParseFormats(string? text) =>
+        (text ?? "").Split('|').Select(f => f.Trim()).Where(f => f.Length > 0).ToList();
+
     public TaglistSheet(string name, string shortName, IReadOnlyList<string> columns, int pasteColumn,
         IReadOnlyList<int>? sequenceColumns = null, string sequenceKey = "Tab")
     {

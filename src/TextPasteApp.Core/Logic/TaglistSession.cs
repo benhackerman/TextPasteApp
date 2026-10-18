@@ -30,6 +30,8 @@ public sealed class TaglistSession
     private readonly IReadOnlyList<TextTemplate> _templates;
     private readonly TaglistContext _context;
     private int _fieldOverride = -1;
+    private int _sheetFormatIndex;
+    private TaglistSheet? _formatSheet;
 
     public TaglistBook Book { get; }
 
@@ -74,10 +76,59 @@ public sealed class TaglistSession
         }
     }
 
-    public TextTemplate Template => _templates.Count > 0 ? _templates[TemplateIndex] : new TextTemplate("", "{valor}");
+    private static readonly TextTemplate Raw = new("Sin formato", "{valor}");
 
-    /// <summary>Texto final que se pega (con la plantilla aplicada), o null si no hay fila.</summary>
-    public string? Preview => Selected is { } row ? TemplateEngine.Apply(Template.Pattern, row.Fields(FieldIndex)) : null;
+    /// <summary>
+    /// Plantillas que valen para la fila elegida: los formatos propios de su hoja (más "Sin formato" al final),
+    /// o si la hoja no tiene, las plantillas generales.
+    /// </summary>
+    public IReadOnlyList<TextTemplate> ActiveTemplates
+    {
+        get
+        {
+            if (Selected?.Sheet is { PasteFormats.Count: > 0 } sheet)
+                return sheet.PasteFormats.Select(f => new TextTemplate(f, f)).Append(Raw).ToList();
+            return _templates;
+        }
+    }
+
+    /// <summary>True si la hoja de la fila elegida tiene formatos propios.</summary>
+    public bool UsesSheetFormats => Selected?.Sheet.PasteFormats.Count > 0;
+
+    public TextTemplate Template
+    {
+        get
+        {
+            SyncSheetFormat(); // detecta el cambio de hoja aunque la nueva no tenga formatos
+            if (UsesSheetFormats)
+            {
+                var list = ActiveTemplates;
+                return list[Math.Clamp(_sheetFormatIndex, 0, list.Count - 1)];
+            }
+            return _templates.Count > 0 ? _templates[TemplateIndex] : Raw;
+        }
+    }
+
+    /// <summary>
+    /// Texto final que se pega, o null si no hay fila. El formato propio de la hoja se aplica sólo a la columna
+    /// principal (No): si con ← → eliges otra columna (Text_0…) se pega tal cual.
+    /// </summary>
+    public string? Preview => Selected is { } row ? Format(row, FieldIndex) : null;
+
+    private string Format(TagRow row, int column)
+    {
+        var pattern = UsesSheetFormats && column != row.Sheet.PasteColumn ? Raw.Pattern : Template.Pattern;
+        return TemplateEngine.Apply(pattern, row.Fields(column));
+    }
+
+    /// <summary>Al pasar a otra hoja, sus formatos parten en el primero (el de por defecto).</summary>
+    private void SyncSheetFormat()
+    {
+        var sheet = Selected?.Sheet;
+        if (ReferenceEquals(sheet, _formatSheet)) return;
+        _formatSheet = sheet;
+        _sheetFormatIndex = 0;
+    }
 
     /// <summary>
     /// Valores de la secuencia (Shift+Enter) de la fila elegida, o null si la hoja no tiene secuencia.
@@ -89,7 +140,7 @@ public sealed class TaglistSession
         {
             if (Selected is not { } row || row.Sheet.SequenceColumns.Count == 0) return null;
             return row.Sheet.SequenceColumns
-                .Select(c => c == row.Sheet.PasteColumn ? TemplateEngine.Apply(Template.Pattern, row.Fields(c)) : row[c])
+                .Select(c => c == row.Sheet.PasteColumn ? Format(row, c) : row[c])
                 .ToList();
         }
     }
@@ -183,6 +234,12 @@ public sealed class TaglistSession
 
     public void NextTemplate()
     {
+        SyncSheetFormat();
+        if (UsesSheetFormats)
+        {
+            _sheetFormatIndex = (_sheetFormatIndex + 1) % ActiveTemplates.Count;
+            return;
+        }
         if (_templates.Count > 0) TemplateIndex = (TemplateIndex + 1) % _templates.Count;
     }
 

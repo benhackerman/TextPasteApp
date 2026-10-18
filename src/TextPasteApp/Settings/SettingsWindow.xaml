@@ -224,7 +224,7 @@
                     </Grid>
 
                     <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}" Margin="0,10,0,4"
-                               Text="Columnas: el encabezado tal como está en el Excel o la letra (A, B…). «Columnas visibles» y «Secuencia» separadas por coma (vacío = todas / sin secuencia). Secuencia = lo que pega Shift+Enter con Tab entre cada valor, ej.: No, Text_0, Unit Assignment. El orden de las filas define Ctrl+1…9." />
+                               Text="Columnas: el encabezado tal como está en el Excel o la letra (A, B…). «Columnas visibles» y «Secuencia» separadas por coma (vacío = todas / sin secuencia). Secuencia = lo que pega Shift+Enter con Tab entre cada valor, ej.: No, Text_0, Unit Assignment. El orden de las filas define Ctrl+1…9. Formato al pegar: Act{valor:0000} → Act0023; varios con | (F2 cambia): PID{valor:0000} | PID{valor:0000}.st" />
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
                         <Button Content="▲ Subir" Click="SheetUp_Click" />
                         <Button Content="▼ Bajar" Click="SheetDown_Click" />
@@ -242,7 +242,8 @@
                                 <DataGridTextColumn Header="Hoja del Excel" Binding="{Binding SheetName}" IsReadOnly="True" Width="150" />
                                 <DataGridTextColumn Header="Corto" Binding="{Binding ShortName}" Width="60" />
                                 <DataGridTextColumn Header="Fila encab." Binding="{Binding HeaderRow}" Width="70" />
-                                <DataGridTextColumn Header="Columna a pegar" Binding="{Binding PasteColumn}" Width="120" />
+                                <DataGridTextColumn Header="Columna a pegar" Binding="{Binding PasteColumn}" Width="110" />
+                                <DataGridTextColumn Header="Formato al pegar" Binding="{Binding PasteFormats}" Width="170" />
                                 <DataGridTextColumn Header="Columnas visibles" Binding="{Binding VisibleColumns}" Width="*" />
                                 <DataGridTextColumn Header="Secuencia (Shift+Enter)" Binding="{Binding Sequence}" Width="*" />
                                 <DataGridComboBoxColumn x:Name="SequenceKeyColumn" Header="Entre valores" SelectedItemBinding="{Binding SequenceKey}" Width="95" />

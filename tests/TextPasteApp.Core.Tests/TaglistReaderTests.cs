@@ -32,36 +32,70 @@ public class TaglistReaderTests
         Assert.Equal("", TaglistReader.CellText(null));
     }
 
-    [Fact]
-    public void ReadsCsvWithHeaderRow()
+    [Theory]
+    [InlineData("Actuadores", "ACT")]
+    [InlineData("PID", "PID")]
+    [InlineData("Entradas digitales", "ED")]
+    public void GuessesShortNames(string name, string expected) =>
+        Assert.Equal(expected, TaglistReader.GuessShortName(name));
+
+    private static string WriteCsv(string content)
     {
         var path = Path.Combine(Path.GetTempPath(), $"taglist-{Guid.NewGuid():N}.csv");
-        File.WriteAllText(path,
-            "Proyecto X;;\n" +
-            "TAG;ACTUADOR;DESCRIPCION\n" +
-            "XV-1023;23;Válvula entrada\n" +
-            ";;\n" +
-            "M-2001;101;Bomba\n");
+        File.WriteAllText(path, content);
+        return path;
+    }
+
+    private const string Csv =
+        "Proyecto Planta Norte;;;\n" +
+        "TAG;N° ACT;DESCRIPCIÓN;ÁREA\n" +
+        "XV-1023;23;Válvula entrada;310\n" +
+        ";;;\n" +
+        "M-2001;101;Motor agitador;320\n";
+
+    [Fact]
+    public void DetectsHeaderRowAndNumberColumn()
+    {
+        var path = WriteCsv(Csv);
         try
         {
-            var rows = TaglistReader.Read(new TaglistSettings
-            {
-                FilePath = path,
-                HeaderRow = 2,
-                TagColumn = "TAG",
-                ValueColumn = "Actuador",
-                DescriptionColumn = "C",
-            });
+            var sheet = Assert.Single(TaglistReader.DetectSheets(path));
+            Assert.Equal(2, sheet.HeaderRow);
+            Assert.Equal("N° ACT", sheet.PasteColumn);
+        }
+        finally { File.Delete(path); }
+    }
 
-            Assert.Equal(2, rows.Count);
-            Assert.Equal("XV-1023", rows[0].Tag);
-            Assert.Equal("23", rows[0].Value);
-            Assert.Equal("Válvula entrada", rows[0].Description);
-            Assert.Equal("101", rows[1].Cells["ACTUADOR"]);
-        }
-        finally
+    [Fact]
+    public void ReadsBookWithVisibleColumnsAndPasteColumn()
+    {
+        var path = WriteCsv(Csv);
+        try
         {
-            File.Delete(path);
+            var detected = Assert.Single(TaglistReader.DetectSheets(path));
+            detected.VisibleColumns = "TAG, descripción"; // la de pegar se agrega sola
+            var book = TaglistReader.ReadBook(new TaglistProfile { FilePath = path, Sheets = { detected } });
+
+            var sheet = Assert.Single(book.Sheets);
+            Assert.Equal(new[] { "N° ACT", "TAG", "DESCRIPCIÓN" }, sheet.Columns);
+            Assert.Equal(2, sheet.Rows.Count);
+            Assert.Equal("23", sheet.Rows[0].PasteValue);
+            Assert.Equal("XV-1023", sheet.Rows[0].Title);
+            Assert.Equal("Motor agitador", sheet.Rows[1].Description);
         }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void DisabledSheetsAreSkipped()
+    {
+        var path = WriteCsv(Csv);
+        try
+        {
+            var detected = Assert.Single(TaglistReader.DetectSheets(path));
+            detected.Enabled = false;
+            Assert.Empty(TaglistReader.ReadBook(new TaglistProfile { FilePath = path, Sheets = { detected } }).Sheets);
+        }
+        finally { File.Delete(path); }
     }
 }

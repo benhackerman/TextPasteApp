@@ -39,7 +39,58 @@ aparece un cuadro de búsqueda, Enter pega y la app de destino recupera el foco 
 | DPI | Manifest PerMonitorV2 + posición en píxeles físicos | Ruleta nítida y centrada en monitores con distinto escalado |
 | Distribución | `.exe` único autocontenido desde GitHub Actions | Se puede probar en el PC del trabajo sin instalar nada |
 
-## Estado (v0.1 — esta rama)
+## v0.6 — historial con origen y secuencias flexibles
+
+- Cada texto del historial guarda el programa de origen (Excel, TIA Portal, Step 7…) y la hora; se puede buscar por ellos.
+- La ruleta muestra, sólo al apuntar un sector, una franja con el texto completo y su origen.
+- Secuencias: tecla entre valores por hoja (Tab, Enter, Abajo, Derecha) y pausa configurable (ms).
+
+## v0.5 — vistas compactas y AWL que entiende variables
+
+- Todas las vistas flotantes compactas: ruleta de 400 px sin línea de ayuda; buscador de funciones sin ayuda
+  (va en el tooltip de la vista previa), 5 resultados y 8 líneas de vista previa.
+- `AwlParser`: reconoce instrucción / variable / constante / etiqueta / comentario línea por línea
+  (la primera palabra es la instrucción; resuelve L, T y A ambiguos). Mnemónicos alemanes e ingleses.
+- Cambiar una variable la reemplaza en todo el bloque (DB12 también en sus accesos DB12.DBX…).
+- Vista previa coloreada; editor convierte variables en parámetros.
+
+## v0.4 — funciones (código AWL)
+
+- Biblioteca de funciones (functions.json): nombre, categoría, descripción, código. Se incluye en el respaldo.
+- Buscador compacto con atajo propio (Ctrl+Shift+F), vista previa y parámetros `{{nombre}}`
+  (llaves dobles porque AWL usa `$` en sus textos).
+- Parámetros rellenados desde la última fila del taglist (mismo nombre de columna) o el último valor usado.
+- Ctrl+F en el taglist abre las funciones con esa fila; Ctrl+N guarda lo copiado como función.
+- Estadísticas: pegados de funciones y su tiempo ahorrado (60 s por defecto).
+
+## v0.3 — para usarla siempre
+
+- **Secuencias** (Shift+Enter): pegar varias columnas con Tab entre ellas; configurable por hoja en el perfil.
+- **Avance por proyecto**: pegar marca la fila ✓; Ctrl+D marca/desmarca; contador ✓ hechas/total en el buscador.
+- **Recientes primero** (↺) cuando no has escrito nada.
+- **Hoja automática**: si no hay coincidencias en la hoja actual, se muestran las de todas («TODAS (auto)»).
+- **Proyectos** (archivo + perfil): se eligen solos por el título de la ventana, por el Excel abierto o el último usado; F4 cambia.
+- **Estadísticas** (usage.json, agregadas por elemento y por día): pegados, tiempo ahorrado estimado, top, gráfico 30 días, avance.
+- **Historial**: fijar elementos (P / Ctrl+P / Configuración), no guarda textos marcados como privados por gestores de
+  contraseñas ni textos muy largos.
+- **Instalador** Inno Setup por usuario + **actualización automática** desde GitHub Releases + **respaldo** completo.
+
+## Modo taglist (v0.2)
+
+Decidido con el usuario:
+- **Dos atajos**: ruleta (Ctrl+Shift+Espacio) y taglist (Ctrl+Shift+T, abre directo el buscador).
+- **Rueda = columna** de la fila; ↑↓ = fila. Cada fila parte en la «columna a pegar» de su hoja.
+- **Hoja inicial = la última usada**. Tab recorre las hojas (incluida «Todas»), Ctrl+1…9 salta directo.
+- La búsqueda mira **todas las columnas visibles** de la fila. Orden: celda idéntica → empieza igual → contiene.
+- **Perfiles de taglist** (las "plantillas de taglist"): hojas, fila de encabezados, columna a pegar y columnas visibles.
+  «Detectar hojas» propone todo (encabezado = primera fila con 2+ textos; columna a pegar = la que empieza con N°/Nº/NUM/ID).
+- **Opacidad** ajustable (40–100 %) para ruleta y taglist; en el taglist también con Ctrl+rueda.
+- Probado con un taglist real (hojas Act, DIn, AIn, PID, Msg, Cnt, Switch, Unit… con columnas No | IO | Code | Text_0…):
+  se reconoce `Code` como tag y `Text_0` como descripción, se ocultan las filas reservadas (sólo No/IO),
+  la rueda salta columnas vacías, y se desmarcan hojas vacías o de configuración.
+- Mejoras a la ruleta: teclas 1–8 eligen y pegan un sector directo (con su número dibujado).
+
+## Estado (v0.1)
 
 - [x] Reestructura completa (Core + App + tests + CI)
 - [x] Historial del portapapeles (sin duplicados, límite, se guarda)
@@ -60,7 +111,8 @@ Cosas que no se pueden verificar sin Windows real; anota lo que falle y lo vemos
 3. Rueda con la ruleta abierta → cambia de página y **no** hace scroll en la app de atrás.
 4. Tab → Favoritos → Taglist. Clic derecho → cambia la plantilla (chip abajo).
 5. Toque rápido → queda abierta con buscador; escribir parte de un tag; Enter → pega.
-6. Configurar el taglist real: elegir archivo, hoja, fila de encabezados, columnas → *Vista previa*.
+6. Configurar el taglist real: Examinar → «Detectar hojas» → revisar la columna a pegar de cada hoja → *Vista previa*.
+6b. Ctrl+Shift+T en el SCADA: escribir parte de un tag, ↑↓, rueda, Tab entre hojas, Enter → pega en el campo.
 7. Probar con el Excel abierto al mismo tiempo.
 8. Probar en el SCADA real (algunos programas antiguos leen el portapapeles lento: si pega lo anterior,
    desactivar "devolver al portapapeles lo que había antes").
@@ -70,8 +122,7 @@ Cosas que no se pueden verificar sin Windows real; anota lo que falle y lo vemos
 
 ## Próximos pasos (ideas, en orden sugerido)
 
-1. **Ajustes tras la primera prueba real** (velocidad del toque, tamaño de la ruleta, textos).
-2. **Recientes del taglist**: los últimos tags usados primero en la lista.
+1. **Ajustes tras la primera prueba real** (velocidad del toque, tamaño de la ruleta, textos, pausas).
 3. **Filtro por columna/área** del taglist (p. ej. sólo área 310) para listas gigantes.
 4. **Varias plantillas por fuente** (una por defecto para taglist y otra para historial).
 5. **Secuencias**: pegar varios campos seguidos con Tab entre ellos (tag → Tab → valor → Tab → descripción).

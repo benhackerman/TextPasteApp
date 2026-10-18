@@ -45,6 +45,14 @@ public sealed class JsonStore
         }
     }
 
+    /// <summary>Exporta un objeto a un archivo cualquiera (por ejemplo un perfil de taglist para compartir).</summary>
+    public static void ExportFile<T>(string path, T value) =>
+        File.WriteAllText(path, JsonSerializer.Serialize(value, Options));
+
+    /// <summary>Importa un objeto desde un archivo exportado. Lanza JsonException si el archivo no es válido.</summary>
+    public static T ImportFile<T>(string path) where T : new() =>
+        JsonSerializer.Deserialize<T>(File.ReadAllText(path), Options) ?? new T();
+
     public void Save<T>(string name, T value)
     {
         var path = PathFor(name);

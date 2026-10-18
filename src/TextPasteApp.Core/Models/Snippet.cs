@@ -9,6 +9,15 @@ public sealed class Snippet
     /// <summary>Texto que se pega.</summary>
     public string Text { get; set; } = "";
 
+    /// <summary>Programa desde donde se copió (EXCEL, notepad…). Vacío en favoritos.</summary>
+    public string SourceApp { get; set; } = "";
+
+    /// <summary>Cuándo se copió (sólo historial).</summary>
+    public DateTime? CopiedAt { get; set; }
+
+    /// <summary>Fijado: siempre aparece primero en el historial y no se borra al limpiarlo.</summary>
+    public bool Pinned { get; set; }
+
     public Snippet() { }
 
     public Snippet(string text, string label = "")

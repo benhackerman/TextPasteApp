@@ -5,7 +5,20 @@ namespace TextPasteApp.Core.Models;
 /// <summary>Toda la configuración de la app. Se guarda como settings.json en %AppData%\TextPasteApp.</summary>
 public sealed class AppSettings
 {
+    /// <summary>Atajo de la ruleta (historial / favoritos): mantener y soltar.</summary>
     public HotkeySettings Hotkey { get; set; } = new();
+
+    /// <summary>Atajo que abre directo el taglist con el buscador.</summary>
+    public HotkeySettings TaglistHotkey { get; set; } = new() { Ctrl = true, Shift = true, Key = "T" };
+
+    /// <summary>Atajo que abre el buscador de funciones (código AWL guardado).</summary>
+    public HotkeySettings FunctionsHotkey { get; set; } = new() { Ctrl = true, Shift = true, Key = "F" };
+
+    /// <summary>Segundos que estimas ahorrar por cada función pegada.</summary>
+    public int SecondsSavedFunction { get; set; } = 60;
+
+    /// <summary>Opacidad de la ruleta y del taglist (0.4 a 1).</summary>
+    public double Opacity { get; set; } = 0.95;
 
     /// <summary>Cuántos textos copiados se recuerdan.</summary>
     public int HistoryLimit { get; set; } = 50;
@@ -31,7 +44,67 @@ public sealed class AppSettings
         new Snippet("OFF", "OFF"),
     };
 
-    public TaglistSettings Taglist { get; set; } = new();
+    /// <summary>Perfiles ("plantillas") de taglist. Normalmente uno solo que reutilizas en cada proyecto.</summary>
+    public List<TaglistProfile> TaglistProfiles { get; set; } = new() { new TaglistProfile() };
+
+    /// <summary>Nombre del perfil en uso (el del proyecto activo; se mantiene por compatibilidad).</summary>
+    public string ActiveProfile { get; set; } = "Mi taglist";
+
+    /// <summary>Proyectos: archivo de taglist + perfil + cómo reconocerlo.</summary>
+    public List<TaglistProject> Projects { get; set; } = new();
+
+    /// <summary>Último proyecto usado (se usa si ninguna regla reconoce la ventana actual).</summary>
+    public string ActiveProject { get; set; } = "";
+
+    /// <summary>Segundos que estimas ahorrar por cada valor pegado desde el taglist (para las estadísticas).</summary>
+    public int SecondsSavedTaglist { get; set; } = 20;
+
+    /// <summary>Segundos que estimas ahorrar por cada pegado desde la ruleta.</summary>
+    public int SecondsSavedRing { get; set; } = 4;
+
+    /// <summary>Los textos más largos que esto no se guardan en el historial.</summary>
+    public int MaxHistoryTextLength { get; set; } = 2000;
+
+    /// <summary>Pausa entre los valores de una secuencia, en milisegundos (súbela si el SCADA es lento).</summary>
+    public int SequenceDelayMs { get; set; } = 120;
+
+    /// <summary>Buscar versiones nuevas en GitHub al iniciar.</summary>
+    public bool AutoUpdate { get; set; } = true;
+
+    /// <summary>Última hoja usada en el taglist ("" = todas).</summary>
+    public string LastSheet { get; set; } = "";
+
+    /// <summary>El perfil activo (o el primero si el nombre no existe).</summary>
+    public TaglistProfile CurrentProfile()
+    {
+        if (TaglistProfiles.Count == 0) TaglistProfiles.Add(new TaglistProfile());
+        return TaglistProfiles.FirstOrDefault(p => p.Name == ActiveProfile) ?? TaglistProfiles[0];
+    }
+
+    /// <summary>Perfil por nombre (o el primero).</summary>
+    public TaglistProfile ProfileFor(TaglistProject project)
+    {
+        if (TaglistProfiles.Count == 0) TaglistProfiles.Add(new TaglistProfile());
+        return TaglistProfiles.FirstOrDefault(p => p.Name == project.Profile) ?? TaglistProfiles[0];
+    }
+
+    /// <summary>
+    /// Pasa la configuración antigua (un archivo dentro del perfil) a proyectos. Devuelve true si cambió algo.
+    /// </summary>
+    public bool EnsureProjects()
+    {
+        if (Projects.Count > 0) return false;
+        var profile = CurrentProfile();
+        if (string.IsNullOrWhiteSpace(profile.FilePath)) return false;
+        Projects.Add(new TaglistProject
+        {
+            Name = Logic.ProjectResolver.FileNameOf(profile.FilePath),
+            FilePath = profile.FilePath,
+            Profile = profile.Name,
+        });
+        ActiveProject = Projects[0].Name;
+        return true;
+    }
 
     public List<TextTemplate> Templates { get; set; } = new()
     {
@@ -69,26 +142,4 @@ public sealed class HotkeySettings
         parts.Add(Key);
         return string.Join(" + ", parts);
     }
-}
-
-/// <summary>Dónde está el taglist y qué columnas usar.</summary>
-public sealed class TaglistSettings
-{
-    /// <summary>Ruta al .xlsx / .xlsm / .xls / .csv.</summary>
-    public string FilePath { get; set; } = "";
-
-    /// <summary>Nombre de la hoja. Vacío = la primera.</summary>
-    public string SheetName { get; set; } = "";
-
-    /// <summary>Fila donde están los encabezados (empieza en 1).</summary>
-    public int HeaderRow { get; set; } = 1;
-
-    /// <summary>Columna con el tag del P&amp;ID. Nombre del encabezado o letra (A, B, ...).</summary>
-    public string TagColumn { get; set; } = "A";
-
-    /// <summary>Columna con el valor a pegar (número de actuador / módulo).</summary>
-    public string ValueColumn { get; set; } = "B";
-
-    /// <summary>Columna con la descripción (opcional).</summary>
-    public string DescriptionColumn { get; set; } = "";
 }

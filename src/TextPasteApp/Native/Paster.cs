@@ -33,6 +33,45 @@ internal static class Paster
         }
     }
 
+    /// <summary>
+    /// Pega varios valores seguidos con Tab entre ellos, para llenar un formulario de una pasada.
+    /// Un valor vacío no pega nada pero igual avanza con Tab (así cada valor cae en su campo).
+    /// </summary>
+    public static async Task PasteSequenceAsync(System.Collections.Generic.IReadOnlyList<string> values, IntPtr targetWindow,
+        bool restoreClipboard, int separatorVk = Win32.VK_TAB, int delayMs = 120)
+    {
+        delayMs = Math.Clamp(delayMs, 30, 2000);
+        if (values.Count == 0) return;
+        var previous = restoreClipboard ? ClipboardHelper.TryGetText() : null;
+
+        if (targetWindow != IntPtr.Zero && Win32.IsWindow(targetWindow) && Win32.GetForegroundWindow() != targetWindow)
+        {
+            Win32.SetForegroundWindow(targetWindow);
+            await Task.Delay(60);
+        }
+        await WaitForModifiersReleasedAsync();
+
+        for (var i = 0; i < values.Count; i++)
+        {
+            if (values[i].Length > 0 && ClipboardHelper.TrySetText(values[i]))
+            {
+                SendCtrlV();
+                await Task.Delay(delayMs); // que la app alcance a leer el portapapeles antes del siguiente
+            }
+            if (i < values.Count - 1)
+            {
+                Send(Key(separatorVk, down: true), Key(separatorVk, down: false));
+                await Task.Delay(Math.Max(40, delayMs * 2 / 3));
+            }
+        }
+
+        if (previous != null)
+        {
+            await Task.Delay(400);
+            ClipboardHelper.TrySetText(previous);
+        }
+    }
+
     /// <summary>Si el usuario todavía tiene Shift o Alt presionado, Ctrl+V se convertiría en otra cosa.</summary>
     private static async Task WaitForModifiersReleasedAsync()
     {

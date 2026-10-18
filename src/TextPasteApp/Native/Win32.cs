@@ -28,7 +28,7 @@ internal static class Win32
     public const uint INPUT_KEYBOARD = 1;
     public const uint KEYEVENTF_KEYUP = 0x0002;
 
-    public const int VK_CONTROL = 0x11, VK_SHIFT = 0x10, VK_MENU = 0x12, VK_LWIN = 0x5B, VK_RWIN = 0x5C, VK_V = 0x56;
+    public const int VK_CONTROL = 0x11, VK_SHIFT = 0x10, VK_MENU = 0x12, VK_LWIN = 0x5B, VK_RWIN = 0x5C, VK_V = 0x56, VK_TAB = 0x09;
 
     /// <summary>Tecla sin uso asignado. Se envía para que soltar Alt/Win no abra menús.</summary>
     public const int VK_UNASSIGNED = 0xE8;
@@ -163,6 +163,11 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int x, int y);
 
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    public const uint SWP_NOSIZE = 0x0001;
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
@@ -181,6 +186,77 @@ internal static class Win32
         catch (EntryPointNotFoundException) { }
         return (info.rcWork, scale);
     }
+
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    public static string WindowTitle(IntPtr hwnd)
+    {
+        var sb = new System.Text.StringBuilder(512);
+        GetWindowText(hwnd, sb, sb.Capacity);
+        return sb.ToString();
+    }
+
+    /// <summary>Títulos de todas las ventanas visibles (para saber qué Excel tienes abierto).</summary>
+    public static System.Collections.Generic.List<string> VisibleWindowTitles()
+    {
+        var titles = new System.Collections.Generic.List<string>();
+        EnumWindows((hwnd, _) =>
+        {
+            if (IsWindowVisible(hwnd))
+            {
+                var title = WindowTitle(hwnd);
+                if (title.Length > 0) titles.Add(title);
+            }
+            return true;
+        }, IntPtr.Zero);
+        return titles;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    /// <summary>Nombre amigable del programa de la ventana activa ("Excel", "TIA Portal"…), o "".</summary>
+    public static string ForegroundAppName()
+    {
+        try
+        {
+            GetWindowThreadProcessId(GetForegroundWindow(), out var pid);
+            if (pid == 0) return "";
+            using var process = System.Diagnostics.Process.GetProcessById((int)pid);
+            return FriendlyAppName(process.ProcessName);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return "";
+        }
+    }
+
+    private static string FriendlyAppName(string process) => process.ToLowerInvariant() switch
+    {
+        "excel" => "Excel",
+        "winword" => "Word",
+        "notepad" => "Bloc de notas",
+        "notepad++" => "Notepad++",
+        "siemens.automation.portal" => "TIA Portal",
+        "s7tgtopx" or "s7kafapx" or "s7epaapx" => "Step 7",
+        "chrome" => "Chrome",
+        "msedge" => "Edge",
+        "firefox" => "Firefox",
+        "outlook" => "Outlook",
+        "teams" or "ms-teams" => "Teams",
+        "explorer" => "Explorador",
+        "code" => "VS Code",
+        _ => process.Length > 0 ? char.ToUpperInvariant(process[0]) + process[1..] : "",
+    };
 
     public static bool IsKeyDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
 

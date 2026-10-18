@@ -4,7 +4,7 @@ namespace TextPasteApp.Core.Models;
 
 /// <summary>
 /// Un elemento elegible en la ruleta, sin importar de qué fuente venga.
-/// Fields son los valores que puede usar una plantilla: {valor}, {tag}, {desc}, {texto} y las columnas del Excel.
+/// Fields son los valores que puede usar una plantilla: {valor}, {tag}, {desc}, {texto}.
 /// </summary>
 public sealed class PickItem
 {
@@ -17,6 +17,12 @@ public sealed class PickItem
     public string Description { get; }
 
     public IReadOnlyDictionary<string, string> Fields { get; }
+
+    /// <summary>Fijado en el historial (se dibuja con una marca).</summary>
+    public bool Pinned { get; init; }
+
+    /// <summary>Texto original (para fijar/soltar y para las estadísticas).</summary>
+    public string Text => Fields.TryGetValue("texto", out var t) ? t : Subtitle;
 
     internal string NormalizedTitle { get; }
     internal string NormalizedAll { get; }
@@ -41,19 +47,11 @@ public sealed class PickItem
             ["tag"] = title,
             ["desc"] = "",
         };
-        return new PickItem(title, s.Text, "", fields);
-    }
-
-    public static PickItem FromTagRow(TagRow row)
-    {
-        var fields = new Dictionary<string, string>(row.Cells, StringComparer.OrdinalIgnoreCase)
-        {
-            ["valor"] = row.Value,
-            ["tag"] = row.Tag,
-            ["desc"] = row.Description,
-            ["texto"] = row.Value,
-        };
-        return new PickItem(row.Tag, row.Value, row.Description, fields);
+        // La descripción (programa y hora) también sirve para buscar: "excel" encuentra lo copiado desde Excel.
+        var origin = s.SourceApp.Length > 0 && s.CopiedAt is { } at ? $"{s.SourceApp} · {at:HH:mm}"
+            : s.SourceApp.Length > 0 ? s.SourceApp
+            : s.CopiedAt is { } t ? $"{t:dd-MM HH:mm}" : "";
+        return new PickItem(title, s.Text, origin, fields) { Pinned = s.Pinned };
     }
 
     private static string FirstLine(string text)

@@ -17,7 +17,7 @@ namespace TextPasteApp.Taglist;
 /// Buscador compacto del taglist: aparece bajo el puntero con una línea de búsqueda y una tabla de resultados
 /// que se filtra mientras escribes. Maneja sus propias teclas sobre un <see cref="TaglistSession"/> y al final
 /// le pide al controlador que pegue (o que cancele).
-///   ↑↓ fila · rueda columna · → autocompletar · Tab hoja · Ctrl+1…9 hoja · F2 plantilla · F4 proyecto
+///   ↑↓ fila · ←→ o rueda columna · Fin autocompletar · Tab hoja · Ctrl+1…9 hoja · F2 plantilla · F4 proyecto
 ///   Ctrl+D hecho · Ctrl+F usar fila en una función · Ctrl+rueda opacidad · Enter pega · Shift+Enter secuencia · Esc
 /// </summary>
 public partial class TaglistWindow : Window
@@ -166,7 +166,10 @@ public partial class TaglistWindow : Window
             case Key.T when ctrl:
                 Do(s => s.NextTemplate());
                 return;
-            case Key.Right when SearchBox.CaretIndex == SearchBox.Text.Length && _session.Ghost.Length > 0:
+            // ← → cambian de columna (igual que la rueda). Ctrl+← → siguen moviendo el cursor del texto.
+            case Key.Left when !ctrl: Do(s => s.MoveField(-1)); return;
+            case Key.Right when !ctrl: Do(s => s.MoveField(1)); return;
+            case Key.End when _session.Ghost.Length > 0:
                 _session.AcceptGhost();
                 SetSearchText(_session.Query);
                 Render();

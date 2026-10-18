@@ -20,7 +20,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="GhostText" Margin="4,0,0,0" VerticalAlignment="Center"
                            FontFamily="Consolas" FontSize="14" IsHitTestVisible="False" />
-                <TextBlock x:Name="Placeholder" Text="Buscar tag, n°, texto…" Margin="4,0,0,0" VerticalAlignment="Center"
+                <TextBlock x:Name="Placeholder" Text="Buscar tag, n°, texto…  (↑↓ fila · ←→ columna · Enter pega)" Margin="4,0,0,0" VerticalAlignment="Center"
                            FontSize="13" Foreground="#FF6B7280" IsHitTestVisible="False" />
                 <TextBox x:Name="SearchBox" VerticalAlignment="Center" MinWidth="200"
                          Background="Transparent" BorderThickness="0" Foreground="White" CaretBrush="White"

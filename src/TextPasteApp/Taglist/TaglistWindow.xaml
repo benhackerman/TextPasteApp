@@ -30,7 +30,8 @@
                                MaxWidth="160" TextTrimming="CharacterEllipsis" ToolTip="F4: cambiar de proyecto" />
                     <TextBlock x:Name="ProgressText" Foreground="#FF9AA0AA" FontSize="11" Margin="0,0,8,0"
                                ToolTip="Filas hechas / total · Ctrl+D marca o desmarca" />
-                    <TextBlock x:Name="TemplateText" Foreground="#FF9AA0AA" FontSize="11" Margin="0,0,8,0" Visibility="Collapsed" />
+                    <TextBlock x:Name="TemplateText" Foreground="#FF3DDC97" FontFamily="Consolas" FontSize="12" FontWeight="SemiBold"
+                               Margin="0,0,10,0" Visibility="Collapsed" />
                     <TextBlock x:Name="SheetText" Foreground="#FF3DDC97" FontSize="11" FontWeight="Bold" Cursor="Hand"
                                ToolTip="Tab: cambiar de hoja · Ctrl+1…9: hoja directa" />
                 </StackPanel>

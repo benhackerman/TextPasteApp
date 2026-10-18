@@ -180,3 +180,76 @@ public class TaglistSessionContextTests
         Assert.Null(s.SequenceValues); // DIn no tiene secuencia
     }
 }
+
+public class SheetPasteFormatTests
+{
+    private static TaglistBook Book()
+    {
+        var act = new TaglistSheet("Act", "ACT", new[] { "No", "Code", "Text_0" }, 0, new[] { 0, 2 })
+        {
+            PasteFormats = TaglistSheet.ParseFormats("Act{valor:0000}"),
+        };
+        act.Add("1", "RCP.B1", "Bomba recepción");
+        act.Add("23", "L1.B1", "Bomba llenadora");
+        act.Add("123", "CO1.MV1", "CO2 carbonatador");
+
+        var pid = new TaglistSheet("PID", "PID", new[] { "No", "Code" }, 0)
+        {
+            PasteFormats = TaglistSheet.ParseFormats("PID{valor:0000} | PID{valor:0000}.st"),
+        };
+        pid.Add("5", "CO2.QC");
+
+        var din = new TaglistSheet("DIn", "DIN", new[] { "No", "Code" }, 0); // sin formato propio
+        din.Add("3", "TK1.LSH");
+        return new TaglistBook(new[] { act, pid, din });
+    }
+
+    private static readonly TextTemplate[] Global = { new("Plano", "{valor}"), new("MC", "MC_{valor}") };
+
+    [Fact]
+    public void ActPadsToFourDigits()
+    {
+        var s = new TaglistSession(Book(), "Act", Global, 0);
+        Assert.Equal("Act0001", s.Preview);
+        s.MoveRow(1);
+        Assert.Equal("Act0023", s.Preview);
+        s.MoveRow(1);
+        Assert.Equal("Act0123", s.Preview);
+    }
+
+    [Fact]
+    public void OtherColumnsPasteRawAndSequenceFormatsOnlyTheMainColumn()
+    {
+        var s = new TaglistSession(Book(), "Act", Global, 0);
+        s.MoveField(1);
+        Assert.Equal("RCP.B1", s.Preview);
+        Assert.Equal(new[] { "Act0001", "Bomba recepción" }, s.SequenceValues);
+    }
+
+    [Fact]
+    public void F2CyclesSheetFormatsThenRaw()
+    {
+        var s = new TaglistSession(Book(), "PID", Global, 0);
+        Assert.True(s.UsesSheetFormats);
+        Assert.Equal("PID0005", s.Preview);
+        s.NextTemplate();
+        Assert.Equal("PID0005.st", s.Preview);
+        s.NextTemplate();
+        Assert.Equal("5", s.Preview);   // "Sin formato"
+        s.NextTemplate();
+        Assert.Equal("PID0005", s.Preview);
+    }
+
+    [Fact]
+    public void SheetsWithoutFormatUseGlobalTemplatesAndFormatResetsPerSheet()
+    {
+        var s = new TaglistSession(Book(), "PID", Global, 1);
+        s.NextTemplate();                // PID0005.st
+        s.SetSheet(2);                   // DIn: plantillas generales
+        Assert.False(s.UsesSheetFormats);
+        Assert.Equal("MC_3", s.Preview);
+        s.SetSheet(1);                   // vuelve a PID: parte en su formato por defecto
+        Assert.Equal("PID0005", s.Preview);
+        Assert.Equal(1, s.TemplateIndex); // la plantilla general elegida no se pierde
+    }
+}

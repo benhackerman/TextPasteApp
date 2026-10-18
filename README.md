@@ -44,6 +44,11 @@ Hay **tres atajos**: ruleta, taglist y funciones.
 | **Ctrl + Tab** | Pasar a la ruleta (historial/favoritos) |
 | **Esc** o clic fuera | Cancelar |
 
+**Formato al pegar por hoja:** en el perfil, cada hoja puede tener su formato para la columna principal:
+`Act{valor:0000}` → `Act0023`; `PID{valor:0000} | PID{valor:0000}.st` → `PID0005` (F2 → `PID0005.st`).
+`{valor:0000}` rellena con ceros; también sirven `{tag}`, `{hoja}` y cualquier columna (`{Code}`). Lo que se va a
+pegar aparece en verde arriba a la derecha (`→ Act0023`). Otras columnas (elegidas con ← →) se pegan tal cual.
+
 En la tabla: **✓** = fila ya parametrizada en este proyecto, **↺** = usada hace poco (sin escribir nada, las
 recientes salen primero). Si lo que escribes no está en la hoja actual, se busca solo en todas («TODAS (auto)»).
 

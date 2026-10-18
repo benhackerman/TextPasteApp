@@ -258,8 +258,12 @@ public partial class TaglistWindow : Window
             SequenceText.Visibility = Visibility.Visible;
         }
         else SequenceText.Visibility = Visibility.Collapsed;
-        TemplateText.Text = "plantilla: " + s.Template.Name;
-        TemplateText.Visibility = s.TemplateIndex > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // Lo que realmente se pega, cuando el formato lo cambia (Act0023, PID0005.st, MC_23…).
+        var raw = s.Selected is { } current ? current[s.FieldIndex] : null;
+        var transformed = s.Preview is { } p && p != raw;
+        TemplateText.Text = transformed ? "→ " + s.Preview + (s.ActiveTemplates.Count > 1 ? "  (F2)" : "") : "";
+        TemplateText.ToolTip = transformed ? $"Formato: {s.Template.Pattern} · F2 cambia de formato" : null;
+        TemplateText.Visibility = transformed ? Visibility.Visible : Visibility.Collapsed;
 
         RenderTable(s);
     }

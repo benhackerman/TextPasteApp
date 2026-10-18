@@ -52,6 +52,13 @@ public sealed class SheetProfile
     /// </summary>
     public string Sequence { get; set; } = "";
 
+    /// <summary>
+    /// Formato al pegar la columna principal de esta hoja. Varios separados por "|" (el primero es el de
+    /// por defecto; F2 cambia al siguiente). Ejemplos: "Act{valor:0000}" → Act0023;
+    /// "PID{valor:0000} | PID{valor:0000}.st" → PID0005 o PID0005.st. Vacío = se usan las plantillas generales.
+    /// </summary>
+    public string PasteFormats { get; set; } = "";
+
     /// <summary>Tecla entre los valores de la secuencia: "Tab" (por defecto), "Enter", "Abajo" o "Derecha".</summary>
     public string SequenceKey { get; set; } = "Tab";
 

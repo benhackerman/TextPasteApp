@@ -253,3 +253,23 @@ public class SheetPasteFormatTests
         Assert.Equal(1, s.TemplateIndex); // la plantilla general elegida no se pierde
     }
 }
+
+public class SheetFormatDisplayTests
+{
+    [Fact]
+    public void TableShowsFormattedMainColumnAndExampleWorks()
+    {
+        var act = new TaglistSheet("Act", "ACT", new[] { "No", "Code" }, 0) { PasteFormats = TaglistSheet.ParseFormats("Act{valor:0000}") };
+        var row = act.Add("23", "L1.B1");
+        var din = new TaglistSheet("DIn", "DIN", new[] { "No", "Code" }, 0);
+        var plain = din.Add("3", "TK1.LSH");
+        var s = new TaglistSession(new TaglistBook(new[] { act, din }), "", new[] { new TextTemplate("", "{valor}") }, 0);
+
+        Assert.Equal("Act0023", s.DisplayValue(row, 0));
+        Assert.Equal("L1.B1", s.DisplayValue(row, 1));
+        Assert.Equal("3", s.DisplayValue(plain, 0));
+
+        Assert.Equal("Act0023", new SheetProfile { SheetName = "Act", PasteFormats = "{hoja}{valor:0000}" }.Example);
+        Assert.Equal("PID0023  |  PID0023.st", new SheetProfile { SheetName = "PID", PasteFormats = "PID{valor:0000} | PID{valor:0000}.st" }.Example);
+    }
+}

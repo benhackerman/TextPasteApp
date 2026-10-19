@@ -121,6 +121,17 @@ public sealed class TaglistSession
         return TemplateEngine.Apply(pattern, row.Fields(column));
     }
 
+    /// <summary>
+    /// Lo que se muestra en la tabla para una celda: la columna principal ya con el formato de su hoja
+    /// (Act0023 en vez de 23), así se ve de inmediato qué se va a pegar. Las demás columnas, tal cual.
+    /// </summary>
+    public string DisplayValue(TagRow row, int column)
+    {
+        if (column != row.Sheet.PasteColumn || row.Sheet.PasteFormats.Count == 0) return row[column];
+        if (ReferenceEquals(row.Sheet, Selected?.Sheet)) return TemplateEngine.Apply(Template.Pattern, row.Fields(column));
+        return TemplateEngine.Apply(row.Sheet.PasteFormats[0], row.Fields(column));
+    }
+
     /// <summary>Al pasar a otra hoja, sus formatos parten en el primero (el de por defecto).</summary>
     private void SyncSheetFormat()
     {

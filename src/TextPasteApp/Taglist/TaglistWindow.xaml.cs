@@ -50,6 +50,9 @@ public partial class TaglistWindow : Window
     /// <summary>Ctrl+F: usar la fila elegida para rellenar una función de código.</summary>
     public event Action<TagRow>? UseInFunctionRequested;
 
+    /// <summary>F3 + Enter: nuevo formato al pegar para una hoja (nombre de la hoja, formatos separados por |).</summary>
+    public event Action<string, string>? SheetFormatEdited;
+
     /// <summary>F4: pasar al siguiente proyecto (otro taglist).</summary>
     public event Action? NextProjectRequested;
     public event Action? Cancelled;
@@ -112,10 +115,12 @@ public partial class TaglistWindow : Window
     /// <summary>Cambia el taglist mostrado (otro proyecto) sin cerrar la ventana; conserva lo escrito.</summary>
     internal void Replace(TaglistSession session, string projectLabel, string? emptyMessage)
     {
+        var row = _session?.RowIndex ?? 0;
         _session = session;
         _emptyMessage = emptyMessage;
         ProjectText.Text = projectLabel;
         session.SetQuery(SearchBox.Text);
+        session.SelectRow(row);
         Render();
     }
 
@@ -138,6 +143,11 @@ public partial class TaglistWindow : Window
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (_session == null) return;
+        if (FormatEditor.Visibility == Visibility.Visible)
+        {
+            HandleFormatEditorKey(e);
+            return;
+        }
         var ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
         var shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
@@ -153,6 +163,7 @@ public partial class TaglistWindow : Window
                 Render();
                 return;
             case Key.F4: NextProjectRequested?.Invoke(); return;
+            case Key.F3: OpenFormatEditor(); return;
             case Key.F when ctrl:
                 if (_session.Selected is { } forFunction) UseInFunctionRequested?.Invoke(forFunction);
                 return;
@@ -232,6 +243,58 @@ public partial class TaglistWindow : Window
         _settingText = false;
     }
 
+    // ───────────────────────── Formato de la hoja (F3) ─────────────────────────
+
+    private string? _formatSheetName;
+
+    /// <summary>Muestra una línea para escribir el formato de la hoja actual, con el ejemplo en vivo.</summary>
+    private void OpenFormatEditor()
+    {
+        var sheet = _session?.Selected?.Sheet
+                    ?? (_session is { SheetIndex: >= 0 } s ? s.Book.Sheets[s.SheetIndex] : null);
+        if (sheet == null) return;
+
+        _formatSheetName = sheet.Name;
+        FormatLabel.Text = $"Formato al pegar en {sheet.Name}:";
+        FormatBox.Text = string.Join(" | ", sheet.PasteFormats);
+        if (FormatBox.Text.Length == 0) FormatBox.Text = sheet.Name + "{valor:0000}";
+        FormatEditor.Visibility = Visibility.Visible;
+        UpdateFormatExample();
+        FormatBox.TextChanged -= OnFormatTextChanged;
+        FormatBox.TextChanged += OnFormatTextChanged;
+        FormatBox.Focus();
+        FormatBox.SelectAll();
+    }
+
+    private void OnFormatTextChanged(object sender, TextChangedEventArgs e) => UpdateFormatExample();
+
+    private void UpdateFormatExample() =>
+        FormatExample.Text = "→ " + new SheetProfile { SheetName = _formatSheetName ?? "", PasteFormats = FormatBox.Text }.Example;
+
+    private void HandleFormatEditorKey(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            CloseFormatEditor();
+        }
+        else if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            var name = _formatSheetName;
+            var text = FormatBox.Text.Trim();
+            CloseFormatEditor();
+            if (name != null) SheetFormatEdited?.Invoke(name, text);
+        }
+    }
+
+    private void CloseFormatEditor()
+    {
+        FormatEditor.Visibility = Visibility.Collapsed;
+        SearchBox.Focus();
+        Keyboard.Focus(SearchBox);
+    }
+
     // ───────────────────────── Dibujo ─────────────────────────
 
     private void Render()
@@ -301,7 +364,7 @@ public partial class TaglistWindow : Window
             {
                 var row = rows[k];
                 var cells = new List<Cell> { Mark(s, row) };
-                cells.AddRange(columns.Select(c => new Cell(row[c], c, "c" + c, c == sheet.DescriptionColumn)));
+                cells.AddRange(columns.Select(c => new Cell(s.DisplayValue(row, c), c, "c" + c, c == sheet.DescriptionColumn)));
                 Table.Children.Add(MakeRow(cells, header: false, start + k, s));
             }
         }
@@ -313,7 +376,7 @@ public partial class TaglistWindow : Window
                 var cells = new List<Cell> { Mark(s, row), new(row.Sheet.Short, -1, "sheet", false) };
                 var position = 0;
                 foreach (var c in row.UsefulColumns)
-                    cells.Add(new Cell(row[c], c, "p" + position++, c == row.Sheet.DescriptionColumn));
+                    cells.Add(new Cell(s.DisplayValue(row, c), c, "p" + position++, c == row.Sheet.DescriptionColumn));
                 Table.Children.Add(MakeRow(cells, header: false, start + k, s));
             }
         }

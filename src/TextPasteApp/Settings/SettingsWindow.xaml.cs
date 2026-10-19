@@ -100,7 +100,7 @@ public partial class SettingsWindow : Window
     }
 
     private void UpdateHeader() =>
-        HeaderHint.Text = $"Ruleta: mantén {_hotkey} y suelta para pegar · Taglist: {_taglistHotkey} · Funciones: {_functionsHotkey}";
+        HeaderHint.Text = $"v{Update.UpdateChecker.Current} · Ruleta: mantén {_hotkey} y suelta para pegar · Taglist: {_taglistHotkey} · Funciones: {_functionsHotkey}";
 
     private void Opacity_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -445,6 +445,23 @@ public partial class SettingsWindow : Window
         if (grid.SelectedItem is T item) list.Remove(item);
     }
 
+    private void SheetFormats_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) =>
+        Dispatcher.BeginInvoke(() => { SheetFormatsGrid.Items.Refresh(); SheetsGrid.Items.Refresh(); });
+
+    private void FillSheetFormats_Click(object sender, RoutedEventArgs e)
+    {
+        SheetFormatsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        var filled = 0;
+        foreach (var sheet in _sheets.Where(s => s.Enabled && string.IsNullOrWhiteSpace(s.PasteFormats)))
+        {
+            sheet.PasteFormats = "{hoja}{valor:0000}";
+            filled++;
+        }
+        SheetFormatsGrid.Items.Refresh();
+        SheetsGrid.Items.Refresh();
+        StatusText.Text = filled > 0 ? $"{filled} hojas con formato. Presiona Guardar." : "Todas las hojas ya tenían formato.";
+    }
+
     private void Templates_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateTemplatePreview();
 
     private void Templates_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) =>
@@ -488,6 +505,10 @@ public partial class SettingsWindow : Window
         HiddenColumnsBox.Text = _profile.HiddenColumns;
         _sheets = new ObservableCollection<SheetProfile>(_profile.Sheets);
         SheetsGrid.ItemsSource = _sheets;
+        SheetFormatsGrid.ItemsSource = _sheets;
+        SheetFormatsTitle.Text = _sheets.Count == 0
+            ? "Formato por hoja: primero agrega tu taglist en «Proyectos» (las hojas se detectan solas)"
+            : $"Formato por hoja · perfil «{_profile.Name}»";
         PreviewGrid.ItemsSource = null;
     }
 
@@ -495,6 +516,7 @@ public partial class SettingsWindow : Window
     private void StoreProfile()
     {
         SheetsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        SheetFormatsGrid.CommitEdit(DataGridEditingUnit.Row, true);
         _profile.FilePath = FilePathBox.Text.Trim().Trim('"');
         _profile.HiddenColumns = HiddenColumnsBox.Text.Trim();
         _profile.Sheets = _sheets.ToList();

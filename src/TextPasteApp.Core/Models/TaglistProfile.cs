@@ -62,6 +62,22 @@ public sealed class SheetProfile
     /// <summary>Tecla entre los valores de la secuencia: "Tab" (por defecto), "Enter", "Abajo" o "Derecha".</summary>
     public string SequenceKey { get; set; } = "Tab";
 
+    /// <summary>Cómo queda el formato con el número 23 (para ver el resultado al configurarlo).</summary>
+    [JsonIgnore]
+    public string Example
+    {
+        get
+        {
+            var formats = TaglistSheet.ParseFormats(PasteFormats);
+            if (formats.Count == 0) return "23 (sin formato)";
+            var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["valor"] = "23", ["texto"] = "23", ["hoja"] = SheetName, ["tag"] = "TAG", ["desc"] = "Descripción",
+            };
+            return string.Join("  |  ", formats.Select(f => Logic.TemplateEngine.Apply(f, fields)));
+        }
+    }
+
     [JsonIgnore]
     public string DisplayShort => string.IsNullOrWhiteSpace(ShortName) ? SheetName : ShortName;
 }

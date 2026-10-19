@@ -291,6 +291,28 @@
             <!-- ═══════════ Plantillas ═══════════ -->
             <TabItem Header="Plantillas">
                 <DockPanel>
+                    <!-- Formato por hoja del taglist: el mismo dato que «Formato al pegar» en Perfiles de taglist -->
+                    <Border DockPanel.Dock="Top" Background="#FFF0FBF6" BorderBrush="#FF3DDC97" BorderThickness="1"
+                            CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" x:Name="SheetFormatsTitle" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}" Margin="0,0,0,6"
+                                       Text="Lo que se pega desde cada hoja del taglist. {valor:0000} = número con 4 dígitos. Varios separados por | (F2 cambia en el buscador). También se edita en el buscador con F3." />
+                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                                <Button Content="Usar el nombre de la hoja en las vacías" Click="FillSheetFormats_Click"
+                                        ToolTip="Pone {hoja}{valor:0000} en las hojas sin formato: Act0023, DIn0003, PID0005…" />
+                            </StackPanel>
+                            <DataGrid x:Name="SheetFormatsGrid" AutoGenerateColumns="False" CanUserAddRows="False" Height="150"
+                                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="24"
+                                      CellEditEnding="SheetFormats_CellEditEnding">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Hoja" Binding="{Binding SheetName}" IsReadOnly="True" Width="130" />
+                                    <DataGridTextColumn Header="Formato al pegar" Binding="{Binding PasteFormats}" Width="*" />
+                                    <DataGridTextColumn Header="Ejemplo con el n° 23" Binding="{Binding Example, Mode=OneWay}" IsReadOnly="True" Width="200" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Border>
                     <TextBlock DockPanel.Dock="Top" Style="{StaticResource Help}">
                         Envuelven el texto antes de pegarlo. Se cambian con clic derecho (o T / F2) en la ruleta.
                         <LineBreak />

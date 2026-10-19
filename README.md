@@ -47,7 +47,10 @@ Hay **tres atajos**: ruleta, taglist y funciones.
 **Formato al pegar por hoja:** en el perfil, cada hoja puede tener su formato para la columna principal:
 `Act{valor:0000}` → `Act0023`; `PID{valor:0000} | PID{valor:0000}.st` → `PID0005` (F2 → `PID0005.st`).
 `{valor:0000}` rellena con ceros; también sirven `{tag}`, `{hoja}` y cualquier columna (`{Code}`). Lo que se va a
-pegar aparece en verde arriba a la derecha (`→ Act0023`). Otras columnas (elegidas con ← →) se pegan tal cual.
+pegar aparece en verde arriba a la derecha (`→ Act0023`) y en la tabla. Otras columnas (elegidas con ← →) se pegan tal cual.
+Se configura en tres lugares (es el mismo dato): **F3 en el buscador** (formato de la hoja actual, Enter guarda),
+Configuración → **Plantillas** → «Formato por hoja» (con ejemplo y botón para llenar todas con `{hoja}{valor:0000}`),
+o Configuración → Perfiles de taglist → «Formato al pegar».
 
 En la tabla: **✓** = fila ya parametrizada en este proyecto, **↺** = usada hace poco (sin escribir nada, las
 recientes salen primero). Si lo que escribes no está en la hoja actual, se busca solo en todas («TODAS (auto)»).

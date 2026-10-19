@@ -21,7 +21,8 @@ OutputDir=..\out
 OutputBaseFilename=TextPaste-{#MyAppVersion}-Setup
 Compression=lzma2
 SolidCompression=yes
-CloseApplications=yes
+; Cierra la versión que esté corriendo para poder reemplazarla (si no, seguiría abierta la anterior).
+CloseApplications=force
 RestartApplications=no
 UninstallDisplayIcon={app}\TextPasteApp.exe
 UninstallDisplayName=TextPaste

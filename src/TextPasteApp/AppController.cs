@@ -110,6 +110,7 @@ public sealed class AppController : IDisposable
             if (_taglistProject != null) _usage.ToggleDone(_taglistProject.Name, row.Key);
         };
         _taglistWindow.NextProjectRequested += NextTaglistProject;
+        _taglistWindow.SheetFormatEdited += SaveSheetFormat;
         _taglistWindow.UseInFunctionRequested += row =>
         {
             var target = _targetWindow;
@@ -611,6 +612,23 @@ public sealed class AppController : IDisposable
             _ => "",
         };
         return (session, project.Name + why, empty);
+    }
+
+    /// <summary>F3 en el buscador: guarda el formato de una hoja en el perfil del proyecto y redibuja.</summary>
+    private void SaveSheetFormat(string sheetName, string formats)
+    {
+        if (_taglistProject == null || _taglistWindow?.Session is not { } current) return;
+        var profile = _settings.ProfileFor(_taglistProject);
+        var sheet = profile.Sheets.FirstOrDefault(s => string.Equals(s.SheetName, sheetName, StringComparison.OrdinalIgnoreCase));
+        if (sheet == null) return;
+
+        sheet.PasteFormats = formats;
+        _settings.LastSheet = current.SheetName;
+        _store.Save(SettingsFile, _settings);
+        _taglists.Clear(); // releer con el formato nuevo
+
+        var (session, label, empty) = BuildTaglistSession(_taglistProject, ProjectReason.LastUsed);
+        _taglistWindow.Replace(session, label, empty);
     }
 
     /// <summary>F4 en el buscador: siguiente proyecto.</summary>

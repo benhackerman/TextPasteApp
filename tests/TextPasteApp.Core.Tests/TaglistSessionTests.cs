@@ -272,4 +272,19 @@ public class SheetFormatDisplayTests
         Assert.Equal("Act0023", new SheetProfile { SheetName = "Act", PasteFormats = "{hoja}{valor:0000}" }.Example);
         Assert.Equal("PID0023  |  PID0023.st", new SheetProfile { SheetName = "PID", PasteFormats = "PID{valor:0000} | PID{valor:0000}.st" }.Example);
     }
+
+    [Fact]
+    public void EditingFormatNotifiesExample()
+    {
+        // La tabla de Configuración actualiza el ejemplo con este aviso (sin Items.Refresh, que fallaba al editar).
+        var sheet = new SheetProfile { SheetName = "Act" };
+        var changed = new List<string?>();
+        sheet.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        sheet.PasteFormats = "Act{valor:0000}";
+
+        Assert.Contains(nameof(SheetProfile.PasteFormats), changed);
+        Assert.Contains(nameof(SheetProfile.Example), changed);
+        Assert.Equal("Act0023", sheet.Example);
+    }
 }

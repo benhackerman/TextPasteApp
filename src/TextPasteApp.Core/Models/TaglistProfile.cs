@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json.Serialization;
 
 namespace TextPasteApp.Core.Models;
@@ -26,13 +27,26 @@ public sealed class TaglistProfile
 }
 
 /// <summary>Configuración de una hoja del taglist (Actuadores, Entradas digitales, PID…).</summary>
-public sealed class SheetProfile
+public sealed class SheetProfile : INotifyPropertyChanged
 {
+    private string _sheetName = "";
+    private string _pasteFormats = "";
+
+    /// <summary>
+    /// Avisa a las tablas de Configuración cuando cambia el formato, así el ejemplo se actualiza solo
+    /// (sin Items.Refresh, que falla si la tabla está en medio de una edición).
+    /// </summary>
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     /// <summary>Si es false, la hoja no se carga ni aparece en la búsqueda.</summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>Nombre exacto de la hoja en el Excel.</summary>
-    public string SheetName { get; set; } = "";
+    public string SheetName
+    {
+        get => _sheetName;
+        set { _sheetName = value ?? ""; Changed(nameof(SheetName)); Changed(nameof(Example)); Changed(nameof(DisplayShort)); }
+    }
 
     /// <summary>Nombre corto que se muestra en las etiquetas (ACT, DI, AI…). Vacío = nombre de la hoja.</summary>
     public string ShortName { get; set; } = "";
@@ -57,7 +71,11 @@ public sealed class SheetProfile
     /// por defecto; F2 cambia al siguiente). Ejemplos: "Act{valor:0000}" → Act0023;
     /// "PID{valor:0000} | PID{valor:0000}.st" → PID0005 o PID0005.st. Vacío = se usan las plantillas generales.
     /// </summary>
-    public string PasteFormats { get; set; } = "";
+    public string PasteFormats
+    {
+        get => _pasteFormats;
+        set { _pasteFormats = value ?? ""; Changed(nameof(PasteFormats)); Changed(nameof(Example)); }
+    }
 
     /// <summary>Tecla entre los valores de la secuencia: "Tab" (por defecto), "Enter", "Abajo" o "Derecha".</summary>
     public string SequenceKey { get; set; } = "Tab";
@@ -77,6 +95,8 @@ public sealed class SheetProfile
             return string.Join("  |  ", formats.Select(f => Logic.TemplateEngine.Apply(f, fields)));
         }
     }
+
+    private void Changed(string property) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
 
     [JsonIgnore]
     public string DisplayShort => string.IsNullOrWhiteSpace(ShortName) ? SheetName : ShortName;

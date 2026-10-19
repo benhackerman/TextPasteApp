@@ -303,8 +303,7 @@
                                         ToolTip="Pone {hoja}{valor:0000} en las hojas sin formato: Act0023, DIn0003, PID0005…" />
                             </StackPanel>
                             <DataGrid x:Name="SheetFormatsGrid" AutoGenerateColumns="False" CanUserAddRows="False" Height="150"
-                                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="24"
-                                      CellEditEnding="SheetFormats_CellEditEnding">
+                                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="24">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Hoja" Binding="{Binding SheetName}" IsReadOnly="True" Width="130" />
                                     <DataGridTextColumn Header="Formato al pegar" Binding="{Binding PasteFormats}" Width="*" />

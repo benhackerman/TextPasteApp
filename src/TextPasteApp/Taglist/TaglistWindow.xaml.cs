@@ -17,7 +17,7 @@ namespace TextPasteApp.Taglist;
 /// Buscador compacto del taglist: aparece bajo el puntero con una línea de búsqueda y una tabla de resultados
 /// que se filtra mientras escribes. Maneja sus propias teclas sobre un <see cref="TaglistSession"/> y al final
 /// le pide al controlador que pegue (o que cancele).
-///   ↑↓ fila · ←→ o rueda columna · Fin autocompletar · Tab hoja · Ctrl+1…9 hoja · F2 plantilla · F4 proyecto
+///   ↑↓ fila · ←→ o rueda columna · Fin autocompletar · Tab hoja · Ctrl+1…9 hoja · F2 plantilla · F4 proyecto · F5 hojas
 ///   Ctrl+D hecho · Ctrl+F usar fila en una función · Ctrl+rueda opacidad · Enter pega · Shift+Enter secuencia · Esc
 /// </summary>
 public partial class TaglistWindow : Window
@@ -52,6 +52,12 @@ public partial class TaglistWindow : Window
 
     /// <summary>F3 + Enter: nuevo formato al pegar para una hoja (nombre de la hoja, formatos separados por |).</summary>
     public event Action<string, string>? SheetFormatEdited;
+
+    /// <summary>F5: el controlador responde con <see cref="ShowSheetPicker"/> (todas las hojas del perfil).</summary>
+    public event Action? SheetPickerRequested;
+
+    /// <summary>F5 + Enter: hojas que quedan visibles (nombres exactos de las hojas del Excel).</summary>
+    public event Action<IReadOnlyList<string>>? SheetsChosen;
 
     /// <summary>F4: pasar al siguiente proyecto (otro taglist).</summary>
     public event Action? NextProjectRequested;
@@ -148,6 +154,11 @@ public partial class TaglistWindow : Window
             HandleFormatEditorKey(e);
             return;
         }
+        if (SheetPicker.Visibility == Visibility.Visible)
+        {
+            HandleSheetPickerKey(e);
+            return;
+        }
         var ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
         var shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
@@ -164,6 +175,7 @@ public partial class TaglistWindow : Window
                 return;
             case Key.F4: NextProjectRequested?.Invoke(); return;
             case Key.F3: OpenFormatEditor(); return;
+            case Key.F5: SheetPickerRequested?.Invoke(); return;
             case Key.F when ctrl:
                 if (_session.Selected is { } forFunction) UseInFunctionRequested?.Invoke(forFunction);
                 return;
@@ -291,6 +303,96 @@ public partial class TaglistWindow : Window
     private void CloseFormatEditor()
     {
         FormatEditor.Visibility = Visibility.Collapsed;
+        SearchBox.Focus();
+        Keyboard.Focus(SearchBox);
+    }
+
+    // ───────────────────────── Hojas visibles (F5) ─────────────────────────
+
+    private List<SheetChoice> _pickerSheets = new();
+
+    /// <summary>Muestra las hojas del perfil para marcar cuáles se ven: 1…9 o clic marca/desmarca, Enter guarda.</summary>
+    internal void ShowSheetPicker(IReadOnlyList<SheetChoice> sheets)
+    {
+        if (sheets.Count == 0) return;
+        _pickerSheets = sheets.ToList();
+        SheetPicker.Visibility = Visibility.Visible;
+        RenderSheetPicker(null);
+    }
+
+    private void HandleSheetPickerKey(KeyEventArgs e)
+    {
+        e.Handled = true;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key is Key.Escape or Key.F5)
+        {
+            CloseSheetPicker();
+            return;
+        }
+        if (key == Key.Enter)
+        {
+            var chosen = _pickerSheets.Where(c => c.On).Select(c => c.Name).ToList();
+            if (chosen.Count == 0)
+            {
+                RenderSheetPicker("Marca al menos una hoja.");
+                return;
+            }
+            CloseSheetPicker();
+            SheetsChosen?.Invoke(chosen);
+            return;
+        }
+        var digit = key switch
+        {
+            >= Key.D1 and <= Key.D9 => key - Key.D1,
+            >= Key.NumPad1 and <= Key.NumPad9 => key - Key.NumPad1,
+            _ => -1,
+        };
+        if (digit >= 0) ToggleSheet(digit);
+    }
+
+    private void ToggleSheet(int index)
+    {
+        if (index < 0 || index >= _pickerSheets.Count) return;
+        _pickerSheets[index] = _pickerSheets[index] with { On = !_pickerSheets[index].On };
+        RenderSheetPicker(null);
+    }
+
+    private void RenderSheetPicker(string? warning)
+    {
+        SheetPickerLabel.Text = warning
+            ?? "Hojas que se ven · " + (_pickerSheets.Count <= 9 ? "1…9" : "1…9 o clic") + " marca/desmarca · Enter guarda · Esc cancela";
+        SheetPickerLabel.Foreground = warning == null ? Muted : Brushes.Orange;
+        SheetChips.Children.Clear();
+        for (var i = 0; i < _pickerSheets.Count; i++)
+        {
+            var choice = _pickerSheets[i];
+            var index = i;
+            var number = i < 9 ? $"{i + 1} " : "";
+            var chip = new Border
+            {
+                CornerRadius = new CornerRadius(4),
+                BorderThickness = new Thickness(1),
+                BorderBrush = choice.On ? Accent : GhostBrush,
+                Background = choice.On ? RowHighlight : Brushes.Transparent,
+                Padding = new Thickness(6, 2, 6, 2),
+                Margin = new Thickness(4, 0, 0, 4),
+                Cursor = Cursors.Hand,
+                ToolTip = choice.Name,
+                Child = new TextBlock
+                {
+                    Text = $"{number}{(choice.On ? "✓" : "○")} {choice.Short}",
+                    Foreground = choice.On ? TextBrush : Muted,
+                    FontSize = 12,
+                },
+            };
+            chip.MouseLeftButtonUp += (_, _) => ToggleSheet(index);
+            SheetChips.Children.Add(chip);
+        }
+    }
+
+    private void CloseSheetPicker()
+    {
+        SheetPicker.Visibility = Visibility.Collapsed;
         SearchBox.Focus();
         Keyboard.Focus(SearchBox);
     }
@@ -443,3 +545,6 @@ public partial class TaglistWindow : Window
         return brush;
     }
 }
+
+/// <summary>Una hoja del perfil en el selector F5: nombre en el Excel, nombre corto y si se ve.</summary>
+internal readonly record struct SheetChoice(string Name, string Short, bool On);

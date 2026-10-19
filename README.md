@@ -38,6 +38,7 @@ Hay **tres atajos**: ruleta, taglist y funciones.
 | **Tab / Shift+Tab** | Hoja siguiente / anterior («Todas» busca en el libro completo) |
 | **Ctrl + 1…9** | Hoja directa (Ctrl + 0 = Todas) |
 | **F4** | Cambiar de proyecto (otro taglist) |
+| **F5** | Elegir qué hojas se ven (1…9 o clic marca/desmarca, Enter guarda) |
 | **Ctrl + F** | Usar la fila en una **función** de código (rellena sus parámetros) |
 | **F2 / Ctrl+T** | Cambiar plantilla |
 | **Ctrl + Rueda** | Opacidad de la ventana |

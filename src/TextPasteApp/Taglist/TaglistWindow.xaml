@@ -20,7 +20,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="GhostText" Margin="4,0,0,0" VerticalAlignment="Center"
                            FontFamily="Consolas" FontSize="14" IsHitTestVisible="False" />
-                <TextBlock x:Name="Placeholder" Text="Buscar tag, n°, texto…  (↑↓ fila · ←→ columna · Enter pega)" Margin="4,0,0,0" VerticalAlignment="Center"
+                <TextBlock x:Name="Placeholder" Text="Buscar tag, n°, texto…  (↑↓ fila · ←→ columna · F3 formato · Enter pega)" Margin="4,0,0,0" VerticalAlignment="Center"
                            FontSize="13" Foreground="#FF6B7280" IsHitTestVisible="False" />
                 <TextBox x:Name="SearchBox" VerticalAlignment="Center" MinWidth="200"
                          Background="Transparent" BorderThickness="0" Foreground="White" CaretBrush="White"
@@ -35,6 +35,19 @@
                     <TextBlock x:Name="SheetText" Foreground="#FF3DDC97" FontSize="11" FontWeight="Bold" Cursor="Hand"
                                ToolTip="Tab: cambiar de hoja · Ctrl+1…9: hoja directa" />
                 </StackPanel>
+            </Grid>
+            <!-- F3: formato al pegar de la hoja actual (se guarda en el perfil) -->
+            <Grid x:Name="FormatEditor" Margin="0,4,0,0" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="FormatLabel" Foreground="#FF9AA0AA" FontSize="11" VerticalAlignment="Center" Margin="4,0,8,0" />
+                <TextBox x:Name="FormatBox" Grid.Column="1" Background="#FF0F1115" Foreground="White" CaretBrush="White"
+                         BorderBrush="#FF3DDC97" FontFamily="Consolas" FontSize="13" Padding="4,2" />
+                <TextBlock x:Name="FormatExample" Grid.Column="2" Foreground="#FF3DDC97" FontFamily="Consolas" FontSize="12"
+                           VerticalAlignment="Center" Margin="8,0,4,0" />
             </Grid>
             <Border Height="1" Background="#FF2D3240" Margin="0,4,0,4" />
             <!-- Tabla: encabezados + filas (columnas alineadas con SharedSizeGroup) -->

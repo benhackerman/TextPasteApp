@@ -20,7 +20,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="GhostText" Margin="4,0,0,0" VerticalAlignment="Center"
                            FontFamily="Consolas" FontSize="14" IsHitTestVisible="False" />
-                <TextBlock x:Name="Placeholder" Text="Buscar tag, n°, texto…  (↑↓ fila · ←→ columna · F3 formato · Enter pega)" Margin="4,0,0,0" VerticalAlignment="Center"
+                <TextBlock x:Name="Placeholder" Text="Buscar tag, n°, texto…  (↑↓ fila · ←→ columna · F3 formato · F5 hojas · Enter pega)" Margin="4,0,0,0" VerticalAlignment="Center"
                            FontSize="13" Foreground="#FF6B7280" IsHitTestVisible="False" />
                 <TextBox x:Name="SearchBox" VerticalAlignment="Center" MinWidth="200"
                          Background="Transparent" BorderThickness="0" Foreground="White" CaretBrush="White"
@@ -49,6 +49,11 @@
                 <TextBlock x:Name="FormatExample" Grid.Column="2" Foreground="#FF3DDC97" FontFamily="Consolas" FontSize="12"
                            VerticalAlignment="Center" Margin="8,0,4,0" />
             </Grid>
+            <!-- F5: qué hojas del taglist se ven (se guarda en el perfil, igual que «Usar» en Configuración) -->
+            <StackPanel x:Name="SheetPicker" Margin="0,4,0,0" Visibility="Collapsed">
+                <TextBlock x:Name="SheetPickerLabel" Foreground="#FF9AA0AA" FontSize="11" Margin="4,0,4,4" TextWrapping="Wrap" MaxWidth="780" />
+                <WrapPanel x:Name="SheetChips" MaxWidth="780" />
+            </StackPanel>
             <Border Height="1" Background="#FF2D3240" Margin="0,4,0,4" />
             <!-- Tabla: encabezados + filas (columnas alineadas con SharedSizeGroup) -->
             <StackPanel x:Name="Table" Grid.IsSharedSizeScope="True" />

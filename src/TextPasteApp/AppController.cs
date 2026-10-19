@@ -111,6 +111,8 @@ public sealed class AppController : IDisposable
         };
         _taglistWindow.NextProjectRequested += NextTaglistProject;
         _taglistWindow.SheetFormatEdited += SaveSheetFormat;
+        _taglistWindow.SheetPickerRequested += OpenSheetPicker;
+        _taglistWindow.SheetsChosen += SaveVisibleSheets;
         _taglistWindow.UseInFunctionRequested += row =>
         {
             var target = _targetWindow;
@@ -626,6 +628,32 @@ public sealed class AppController : IDisposable
         _settings.LastSheet = current.SheetName;
         _store.Save(SettingsFile, _settings);
         _taglists.Clear(); // releer con el formato nuevo
+
+        var (session, label, empty) = BuildTaglistSession(_taglistProject, ProjectReason.LastUsed);
+        _taglistWindow.Replace(session, label, empty);
+    }
+
+    /// <summary>F5 en el buscador: muestra todas las hojas del perfil (también las ocultas) para elegir cuáles se ven.</summary>
+    private void OpenSheetPicker()
+    {
+        if (_taglistProject == null || _taglistWindow == null) return;
+        var profile = _settings.ProfileFor(_taglistProject);
+        _taglistWindow.ShowSheetPicker(profile.Sheets
+            .Select(s => new SheetChoice(s.SheetName, s.DisplayShort, s.Enabled))
+            .ToList());
+    }
+
+    /// <summary>F5 + Enter: guarda qué hojas se ven (el mismo dato que «Usar» en Configuración) y relee el taglist.</summary>
+    private void SaveVisibleSheets(IReadOnlyList<string> visible)
+    {
+        if (_taglistProject == null || _taglistWindow?.Session is not { } current) return;
+        var profile = _settings.ProfileFor(_taglistProject);
+        foreach (var sheet in profile.Sheets)
+            sheet.Enabled = visible.Contains(sheet.SheetName, StringComparer.OrdinalIgnoreCase);
+
+        _settings.LastSheet = current.SheetName;
+        _store.Save(SettingsFile, _settings);
+        _taglists.Clear(); // releer sólo las hojas elegidas
 
         var (session, label, empty) = BuildTaglistSession(_taglistProject, ProjectReason.LastUsed);
         _taglistWindow.Replace(session, label, empty);

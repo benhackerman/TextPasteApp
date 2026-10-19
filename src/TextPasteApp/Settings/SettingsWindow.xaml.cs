@@ -445,9 +445,6 @@ public partial class SettingsWindow : Window
         if (grid.SelectedItem is T item) list.Remove(item);
     }
 
-    private void SheetFormats_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) =>
-        Dispatcher.BeginInvoke(() => { SheetFormatsGrid.Items.Refresh(); SheetsGrid.Items.Refresh(); });
-
     private void FillSheetFormats_Click(object sender, RoutedEventArgs e)
     {
         SheetFormatsGrid.CommitEdit(DataGridEditingUnit.Row, true);
@@ -457,8 +454,6 @@ public partial class SettingsWindow : Window
             sheet.PasteFormats = "{hoja}{valor:0000}";
             filled++;
         }
-        SheetFormatsGrid.Items.Refresh();
-        SheetsGrid.Items.Refresh();
         StatusText.Text = filled > 0 ? $"{filled} hojas con formato. Presiona Guardar." : "Todas las hojas ya tenían formato.";
     }
 
